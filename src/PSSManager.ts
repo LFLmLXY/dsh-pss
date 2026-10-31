@@ -77,6 +77,22 @@ export function defaultRoot(): string {
   return join(homedir(), '.dsh', 'pss');
 }
 
+/** 演示语料：每一条都要能引出不同的知识片段，图才不会长得一模一样。 */
+const DEMO_TOPICS: [string, string][] = [
+  ['PSS 到底怎么做到 O(1) 恒定存储的？', '把历史折进定长向量和定长关键词表，磁盘上只存这个状态。'],
+  ['那参数化意图是怎么工作的？LoRA 什么时候加载？', '检索时临时加载会话专属 LoRA 生成检索词，用完立刻卸载，所以常驻显存是零。'],
+  ['可视化探针会记录哪些东西？', '用户输入、意图、命中的知识片段、合成后的上下文包，以及它们之间的因果连线。'],
+  ['质心为什么要用 EMA 而不是简单平均？', '简单平均记不住"最近在聊什么"，指数滑动平均给近期内容更高权重。'],
+  ['关键词表的衰减因子为什么是 0.86？', '每轮乘 0.86，十轮之后权重只剩三成，老话题自然沉底，不需要显式删除。'],
+  ['检索出来的上下文包有多长？', '固定上限 1400 字符，按分数从高到低拼，超了就截断，保证 prompt 不随时间膨胀。'],
+  ['离线训练一次要多久？', '0.5B 基座加上 LoRA，单卡十分钟量级；没有 GPU 时训练端会走 dry-run，把流水线跑通。'],
+  ['adapter 是怎么和会话绑定的？', '会话 id 就是 adapter 目录名，编译时写 manifest，检索时按 id 热插。'],
+  ['记忆压缩了，细节会不会丢？', '会丢细节，保住的是"你在意什么"这件更抽象的事；真要原文，还是得回到日志里查。'],
+  ['这套东西能跨会话迁移吗？', '可以，质心和关键词都是纯数值，把 adapter 复制到另一个会话就能带着偏好走。'],
+  ['为什么用 BM25 而不是纯向量检索？', 'BM25 对专有名词和编号更稳，向量对同义改写更稳，PSS 先用意图改写把两者接起来。'],
+  ['脑图上的连线分别代表什么？', '参数化、检索、装配、编译四种因果关系，颜色和线型都不一样。']
+];
+
 /** 初始（空）参数化状态。 */
 function emptyState(sessionId: string, dim: number): PSSState {
   const now = Date.now();
@@ -625,22 +641,22 @@ export class PSSManager {
    * @param sessionId - 演示会话 id（默认 `demo`）。
    * @returns 造出的图统计。
    */
-  async demo(sessionId = 'demo'): Promise<GraphStats> {
+  async demo(sessionId = 'demo', turns = 6): Promise<GraphStats> {
     await this.init();
-    const dialogue: { role: 'user' | 'assistant'; text: string }[] = [
-      { role: 'user', text: 'PSS 到底怎么做到 O(1) 恒定存储的？' },
-      { role: 'assistant', text: '把历史折进定长向量和定长关键词表，磁盘上只存这个状态。' },
-      { role: 'user', text: '那参数化意图是怎么工作的？LoRA 什么时候加载？' },
-      { role: 'assistant', text: '检索时临时加载会话专属 LoRA 生成检索词，用完立刻卸载。' },
-      { role: 'user', text: '可视化探针会记录哪些东西？' },
-      { role: 'assistant', text: '用户输入、意图、命中的知识片段、合成后的上下文包，以及它们之间的因果连线。' }
-    ];
+    const count = Math.max(1, Math.min(24, Math.floor(turns)));
+    const dialogue: { role: 'user' | 'assistant'; text: string }[] = [];
+
+    for (let i = 0; i < count; i += 1) {
+      const pair = DEMO_TOPICS[i % DEMO_TOPICS.length];
+      dialogue.push({ role: 'user', text: pair[0] });
+      dialogue.push({ role: 'assistant', text: pair[1] });
+    }
 
     for (const turn of dialogue) await this.ingest(sessionId, turn.role, turn.text);
-    for (const turn of dialogue.filter((item) => item.role === 'user')) {
-      await this.retrieve(sessionId, turn.text);
+    for (const turn of dialogue) {
+      if (turn.role === 'user') await this.retrieve(sessionId, turn.text);
     }
-    this.pushEvent('system', 'demo 语料已灌入', sessionId);
+    this.pushEvent('system', `demo 语料已灌入（${count} 轮 / ${this.nodes.length} 节点）`, sessionId);
     return this.graph().stats;
   }
 

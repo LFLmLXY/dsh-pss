@@ -445,7 +445,8 @@ await test('GET / 返回 Dashboard 页面（含渲染器与 HUD）', async () =>
   const res = await fetch(base + '/');
   assert.equal(res.status, 200);
   const html = await res.text();
-  assert.ok(html.includes('PSS · Brain'), 'HUD 标题不在页面里');
+  assert.ok(html.includes('PSS · 记忆脑图'), '顶部标题不在页面里');
+  assert.ok(html.includes('id="legend"'), '左侧图例不在页面里');
   assert.ok(html.includes('cytoscape'), '没有引入 cytoscape');
   assert.ok(html.includes('/api/pss/graph'), '页面没有轮询图接口');
   assert.ok(html.includes('vendor/cytoscape.min.js'), '没有走本地 vendor 副本');

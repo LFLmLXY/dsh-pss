@@ -13,7 +13,7 @@
 [![deps](https://img.shields.io/badge/runtime%20deps-1-ffc857)](package.json)
 [![license](https://img.shields.io/badge/license-MIT-a06bff)](LICENSE)
 
-[![dsh-pss 脑图](docs/dashboard.png)](docs/dashboard.png)
+[![dsh-pss 星图](docs/galaxy.png)](docs/galaxy.png)
 
 *↑ 每一颗发光节点都是一次真实发生的记忆动作：红色是你打的字，青色是 PSS 收敛出的意图，黄色是被检索到的知识片段，蓝色是拼给模型的上下文包。*
 
@@ -91,19 +91,24 @@ BM25 捞不到，向量检索靠不住。PSS 的做法是让**这组会话专属
 
 后端每个动作都往探针里写一笔：`user → intent`（参数化因果）、`intent → knowledge`（检索命中）、
 `knowledge → answer`（上下文装配）、`session → lora`（编译）。Dashboard 每 3 秒拉一次增量图，
-用 Cytoscape 力导向布局把因果关系摊开成一张会呼吸的星图：
+把这些因果关系摊成一张会呼吸的星图：五个类别各自成团，团与团之间是浮在星尘上的「脑区」标题。
 
 | 类别 | 颜色 | 形状 | 含义 |
 | --- | --- | --- | --- |
-| 用户输入 | `#ff4d6d` 红 | 圆 | 你说的话 |
-| PSS 意图 | `#00e5ff` 青 | 菱形 | LoRA 改写出来的检索意图 |
-| 知识片段 | `#ffc857` 黄 | 圆角矩形 | 被命中的知识库 chunk |
-| AI 回答 | `#4d7cff` 蓝 | 圆 | 拼给模型的 context pack |
-| 系统事件 | `#a06bff` 紫 | 六边形 | 会话创建、编译、错误 |
+| 用户输入 | `#ff5470` 红 | 圆点 | 你说的话（语言输入 · VOICE） |
+| PSS 意图 | `#22e0ff` 青 | 菱形 | LoRA 改写出来的检索意图（意图中枢 · INTENT） |
+| 知识片段 | `#ffcf6b` 黄 | 圆点 | 被命中的知识库 chunk（长期记忆库 · LIBRARY） |
+| AI 回答 | `#5b8cff` 蓝 | 圆点 | 拼给模型的 context pack（表达中枢 · EXPRESSION） |
+| 系统事件 | `#b07cff` 紫 | 六边形 | 会话创建、编译、错误（代谢 · METABOLISM） |
 
-连线：青色虚线 = 参数化，黄色实线 = 检索，蓝色实线 = 装配，紫色点线 = 编译。
-左上 HUD 实时显示节点/连线/会话/检索数 + 30 格事件火花线，右上是一直流的事件流，
-点任意节点看详情，点图例可以按类别过滤。
+连线：青色 = 参数化，黄色 = 检索，蓝色 = 装配，紫色 = 编译，全部细到近乎透明 ——
+它们不该抢节点的话。左上 HUD 显示节点/连线/会话/检索数和事件火花线，方向键旁的图例可按类别过滤，
+右上是一直在滚的事件流，点节点看详情，顶部搜索框支持实时过滤 + 回车飞到命中簇。
+
+**为什么不用力导向**：`cose` 会把五个类别揉成一个球，几轮下来所有边都缠在中心。
+这里改成自己算坐标 —— 五个分区按圆周均匀分布，簇内成员按黄金角螺旋铺开，
+位置只与「序号 + id 哈希」有关。结果是：新记忆永远出现在簇的外圈，老节点不会被重新洗牌，
+图看起来是**在生长**，而不是每 3 秒重新抖一次。
 
 ---
 
@@ -192,7 +197,7 @@ dsh-pss/
 ├── tool/
 │   ├── dev-server.mjs        # 本地开发服务器
 │   └── smoke.mjs             # 32 项自检
-├── docs/dashboard.png        # 脑图截图
+├── docs/galaxy.png           # 星图截图（README hero）
 ├── cordis.patch.yml          # DSH bundle 补丁
 └── package.json
 ```
@@ -310,7 +315,7 @@ npm run smoke        # 32 项：单元 + 插件契约 + HTTP e2e
 
 - [x] PSS 运行时（EMA 质心 / 关键词衰减 / 原子落盘）
 - [x] 探针与图数据模型（`GraphData` / `GraphStats`）
-- [x] 星图 Dashboard（增量拉取 + 力导向 + HUD + 事件流 + 类别过滤）
+- [x] 星图 Dashboard（增量拉取 + 分区螺旋布局 + HUD + 事件流 + 类别过滤 + 搜索定位）
 - [x] FastAPI 训练端（真实 peft 训练 + 缺栈时 dry-run）
 - [x] `pss_retrieve` 工具 + DSH bundle 补丁
 - [ ] 真机验证：接上 GPU 跑一轮 `Qwen2.5-0.5B` + LoRA，对比「有记忆 / 无记忆」的检索命中率

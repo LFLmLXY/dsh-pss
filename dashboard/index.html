@@ -3,25 +3,24 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>PSS · Memory Brain — dsh-pss</title>
-<meta name="description" content="dsh-pss 实时可视化探针：把参数化会话状态的记忆流转画成一张会呼吸的脑图。" />
+<title>PSS · 记忆脑图 — dsh-pss</title>
+<meta name="description" content="dsh-pss 实时可视化探针：把参数化会话状态的记忆流转画成一张会呼吸的星图。" />
 <style>
   /* ============================================================
      主题变量：一处改色，全站生效
      ============================================================ */
   :root {
-    --bg: #0a0b10;
-    --bg-2: #0d0f16;
-    --panel: rgba(14, 17, 26, 0.78);
-    --panel-line: rgba(120, 160, 255, 0.14);
+    --bg: #05060b;
+    --panel: rgba(10, 13, 22, 0.62);
+    --panel-line: rgba(120, 160, 255, 0.10);
     --text: #cfd8ec;
-    --text-dim: #6b7794;
+    --text-dim: #66718c;
     --text-hi: #eaf1ff;
-    --user: #ff4d6d;
-    --intent: #00e5ff;
-    --knowledge: #ffc857;
-    --answer: #4d7cff;
-    --system: #a06bff;
+    --user: #ff5470;
+    --intent: #22e0ff;
+    --knowledge: #ffcf6b;
+    --answer: #5b8cff;
+    --system: #b07cff;
     --ok: #35f0a0;
     --warn: #ffb648;
     --err: #ff5d5d;
@@ -42,33 +41,36 @@
   }
 
   /* ============================================================
-     背景：深空 + 星尘 + 极光，全部用 CSS，零图片
+     背景：深空 + 星云 + 星尘 + 扫描线，全部纯 CSS
      ============================================================ */
   .sky {
     position: fixed;
     inset: 0;
     z-index: 0;
     background:
-      radial-gradient(1200px 700px at 18% 12%, rgba(0, 229, 255, 0.10), transparent 60%),
-      radial-gradient(900px 600px at 82% 78%, rgba(160, 107, 255, 0.12), transparent 62%),
-      radial-gradient(700px 500px at 60% 20%, rgba(77, 124, 255, 0.08), transparent 65%),
-      linear-gradient(180deg, #0a0b10 0%, #080a0f 55%, #05060a 100%);
+      radial-gradient(1100px 760px at 50% 46%, rgba(38, 66, 140, 0.30), transparent 62%),
+      radial-gradient(760px 520px at 22% 78%, rgba(120, 40, 120, 0.20), transparent 66%),
+      radial-gradient(700px 480px at 82% 20%, rgba(0, 150, 190, 0.16), transparent 68%),
+      radial-gradient(520px 360px at 66% 88%, rgba(180, 120, 40, 0.10), transparent 70%),
+      linear-gradient(180deg, #070911 0%, #05060b 60%, #030409 100%);
     pointer-events: none;
   }
   .sky::before {
-    /* 星尘：两层不同密度的点阵，靠 animation 缓慢漂移 */
+    /* 星尘：三层不同尺度的点阵，靠 animation 缓慢漂移 */
     content: "";
     position: absolute;
-    inset: -20%;
+    inset: -25%;
     background-image:
-      radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.55), transparent 100%),
-      radial-gradient(1px 1px at 70% 60%, rgba(180,220,255,0.45), transparent 100%),
-      radial-gradient(1.5px 1.5px at 40% 80%, rgba(255,255,255,0.35), transparent 100%),
-      radial-gradient(1px 1px at 85% 15%, rgba(120,200,255,0.5), transparent 100%),
-      radial-gradient(1px 1px at 10% 70%, rgba(255,255,255,0.3), transparent 100%);
-    background-size: 260px 260px, 420px 420px, 380px 380px, 520px 520px, 300px 300px;
-    opacity: 0.5;
-    animation: drift 120s linear infinite;
+      radial-gradient(1px 1px at 20% 30%, rgba(255, 255, 255, 0.85), transparent 100%),
+      radial-gradient(1px 1px at 70% 60%, rgba(180, 220, 255, 0.70), transparent 100%),
+      radial-gradient(1.6px 1.6px at 40% 80%, rgba(255, 255, 255, 0.55), transparent 100%),
+      radial-gradient(1px 1px at 85% 15%, rgba(120, 200, 255, 0.75), transparent 100%),
+      radial-gradient(1px 1px at 10% 70%, rgba(255, 255, 255, 0.45), transparent 100%),
+      radial-gradient(1.2px 1.2px at 55% 45%, rgba(200, 230, 255, 0.5), transparent 100%);
+    background-size:
+      140px 140px, 200px 200px, 260px 260px, 320px 320px, 170px 170px, 230px 230px;
+    opacity: 0.8;
+    animation: drift 180s linear infinite;
   }
   .sky::after {
     /* 扫描线，极客味的关键细节 */
@@ -77,8 +79,8 @@
     inset: 0;
     background: repeating-linear-gradient(
       to bottom,
-      rgba(255, 255, 255, 0.022) 0px,
-      rgba(255, 255, 255, 0.022) 1px,
+      rgba(255, 255, 255, 0.018) 0px,
+      rgba(255, 255, 255, 0.018) 1px,
       transparent 1px,
       transparent 3px
     );
@@ -86,7 +88,7 @@
   }
   @keyframes drift {
     from { transform: translate3d(0, 0, 0); }
-    to   { transform: translate3d(-120px, -90px, 0); }
+    to   { transform: translate3d(-140px, -100px, 0); }
   }
 
   #cy {
@@ -97,7 +99,109 @@
   }
 
   /* ============================================================
-     HUD 通用面板
+     顶部标题区（无边框，纯文字浮在星图上，像观测站的铭牌）
+     ============================================================ */
+  #topbar {
+    position: fixed;
+    z-index: 12;
+    top: 22px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(760px, calc(100vw - 720px));
+    min-width: 420px;
+    text-align: center;
+    pointer-events: none;
+  }
+  #topbar h1 {
+    margin: 0;
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    background: linear-gradient(96deg, #8fd7ff 0%, #ffffff 34%, #ffd6ea 62%, #b8a4ff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 0 22px rgba(120, 190, 255, 0.42));
+  }
+  #topbar .sub {
+    margin-top: 5px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  #topbar .searchwrap {
+    position: relative;
+    margin: 13px auto 0;
+    width: min(430px, 100%);
+    pointer-events: auto;
+  }
+  #topbar .searchwrap::before {
+    /* 放大镜，纯 CSS */
+    content: "";
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    width: 8px;
+    height: 8px;
+    margin-top: -5px;
+    border: 1.4px solid var(--text-dim);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  #topbar .searchwrap::after {
+    content: "";
+    position: absolute;
+    left: 24px;
+    top: 50%;
+    width: 5px;
+    height: 1.4px;
+    margin-top: 2px;
+    background: var(--text-dim);
+    transform: rotate(45deg);
+    pointer-events: none;
+  }
+  #search {
+    width: 100%;
+    padding: 10px 16px 10px 38px;
+    border-radius: 999px;
+    border: 1px solid rgba(150, 185, 255, 0.18);
+    background: rgba(12, 16, 28, 0.55);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    color: var(--text-hi);
+    font-family: var(--sans);
+    font-size: 12.5px;
+    letter-spacing: 0.02em;
+    outline: none;
+    transition: border-color 180ms, box-shadow 180ms, background 180ms;
+  }
+  #search::placeholder { color: #5a648a; }
+  #search:focus {
+    border-color: rgba(90, 200, 255, 0.55);
+    background: rgba(16, 22, 38, 0.72);
+    box-shadow: 0 0 0 3px rgba(60, 160, 255, 0.10), 0 12px 40px rgba(0, 0, 0, 0.5);
+  }
+  #topbar .stats {
+    margin-top: 11px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  #topbar .stats b {
+    color: var(--text-hi);
+    font-weight: 600;
+  }
+  #topbar .stats .sep { color: #333c58; }
+
+  /* ============================================================
+     通用面板（只给需要读数据的区域用）
      ============================================================ */
   .panel {
     position: fixed;
@@ -108,38 +212,36 @@
     backdrop-filter: blur(14px) saturate(140%);
     -webkit-backdrop-filter: blur(14px) saturate(140%);
     box-shadow:
-      0 18px 48px rgba(0, 0, 0, 0.55),
-      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      0 18px 48px rgba(0, 0, 0, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.035);
   }
-
-  /* 角标线：只有四角有细边，像仪表盘 */
   .panel::before, .panel::after {
     content: "";
     position: absolute;
     width: 12px;
     height: 12px;
-    border: 1px solid rgba(0, 229, 255, 0.45);
+    border: 1px solid rgba(0, 229, 255, 0.38);
     pointer-events: none;
   }
   .panel::before { top: -1px; left: -1px; border-right: 0; border-bottom: 0; border-radius: 12px 0 0 0; }
   .panel::after  { bottom: -1px; right: -1px; border-left: 0; border-top: 0; border-radius: 0 0 12px 0; }
 
-  /* ---------- 左上：主 HUD ---------- */
+  /* ---------- 左上：系统 HUD（指标 + 火花线） ---------- */
   #hud {
     top: 18px;
     left: 18px;
-    width: 268px;
-    padding: 14px 16px 12px;
+    width: 196px;
+    padding: 12px 14px 10px;
   }
   .brand {
     display: flex;
     align-items: center;
-    gap: 9px;
-    margin-bottom: 12px;
+    gap: 8px;
+    margin-bottom: 10px;
   }
   .brand .dot {
-    width: 9px;
-    height: 9px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     background: var(--system);
     box-shadow: 0 0 12px var(--system), 0 0 3px #fff inset;
@@ -148,9 +250,9 @@
   .brand h1 {
     margin: 0;
     font-family: var(--mono);
-    font-size: 13px;
+    font-size: 11px;
     font-weight: 600;
-    letter-spacing: 0.16em;
+    letter-spacing: 0.2em;
     color: var(--text-hi);
     text-transform: uppercase;
   }
@@ -158,114 +260,112 @@
     margin-left: auto;
     font-family: var(--mono);
     font-size: 9px;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.06em;
     color: var(--text-dim);
+    padding: 1px 6px;
     border: 1px solid var(--panel-line);
     border-radius: 999px;
-    padding: 2px 7px;
   }
   @keyframes breathe {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50%      { opacity: 0.45; transform: scale(0.82); }
+    0%, 100% { opacity: 0.55; transform: scale(0.9); }
+    50%      { opacity: 1; transform: scale(1.12); }
   }
-
   .metrics {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
-  }
-  .metric {
-    background: rgba(255, 255, 255, 0.028);
-    border: 1px solid rgba(255, 255, 255, 0.055);
-    border-radius: 9px;
-    padding: 8px 10px;
+    gap: 6px 8px;
   }
   .metric .k {
     font-family: var(--mono);
-    font-size: 9px;
-    letter-spacing: 0.14em;
-    color: var(--text-dim);
+    font-size: 8.5px;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
+    color: var(--text-dim);
   }
   .metric .v {
     font-family: var(--mono);
-    font-size: 19px;
-    line-height: 1.25;
+    font-size: 17px;
+    font-weight: 600;
     color: var(--text-hi);
-    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
   }
   .metric.wide { grid-column: span 2; }
-  .metric.wide .v { font-size: 13px; letter-spacing: 0.04em; }
+  .metric.wide .v { font-size: 11px; letter-spacing: 0.03em; color: #9fb4d8; }
 
-  /* 活跃度火花线 */
   .sparks {
     display: flex;
     align-items: flex-end;
     gap: 2px;
     height: 26px;
-    margin-top: 10px;
+    margin-top: 9px;
+    opacity: 0.9;
   }
   .sparks i {
     flex: 1;
-    min-height: 1px;
-    background: linear-gradient(180deg, var(--intent), rgba(0, 229, 255, 0.12));
+    height: 4px;
     border-radius: 1px;
-    transition: height 260ms ease;
+    background: linear-gradient(180deg, #7fe6ff, #2a7cff);
+    box-shadow: 0 0 6px rgba(90, 190, 255, 0.55);
+    transition: height 320ms ease, opacity 320ms ease;
   }
 
-  /* ---------- 左中：图例 / 过滤器 ---------- */
+  /* ---------- 左侧：记忆分区图例（无边框，像标本标签） ---------- */
   #legend {
-    top: 296px;
-    left: 18px;
-    width: 268px;
-    padding: 11px 14px 12px;
+    position: fixed;
+    z-index: 10;
+    top: 178px;
+    left: 22px;
+    width: 210px;
+    background: none;
+    border: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
+  #legend::before, #legend::after { display: none; }
   .cap {
     font-family: var(--mono);
     font-size: 9px;
-    letter-spacing: 0.18em;
-    color: var(--text-dim);
+    letter-spacing: 0.22em;
     text-transform: uppercase;
-    margin-bottom: 9px;
+    color: var(--text-dim);
+    margin-bottom: 10px;
   }
   .legend-row {
     display: flex;
     align-items: center;
-    gap: 9px;
-    padding: 5px 6px;
-    border-radius: 7px;
+    gap: 10px;
+    padding: 5px 8px;
+    border-radius: 8px;
     cursor: pointer;
+    font-size: 13px;
+    color: #b9c6e2;
+    transition: background 160ms, color 160ms, opacity 160ms;
     user-select: none;
-    transition: background 140ms ease, opacity 140ms ease;
   }
-  .legend-row:hover { background: rgba(255, 255, 255, 0.045); }
-  .legend-row.off { opacity: 0.34; }
+  .legend-row:hover { background: rgba(255, 255, 255, 0.05); color: var(--text-hi); }
+  .legend-row.off { opacity: 0.3; }
   .legend-row .chip {
-    width: 9px;
-    height: 9px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     flex: none;
   }
-  .legend-row .nm {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--text);
-  }
+  .legend-row .nm { letter-spacing: 0.02em; }
   .legend-row .ct {
     margin-left: auto;
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 10.5px;
     color: var(--text-dim);
-    font-variant-numeric: tabular-nums;
   }
 
-  /* ---------- 右上：事件流 ---------- */
+  /* ---------- 右上：探针事件流 ---------- */
   #feed {
     top: 18px;
     right: 18px;
-    width: 330px;
-    max-height: 58vh;
-    padding: 12px 14px 10px;
+    width: 340px;
+    padding: 12px 14px;
+    max-height: calc(100vh - 140px);
     display: flex;
     flex-direction: column;
   }
@@ -278,7 +378,6 @@
   #feed .head .cap { margin: 0; }
   #feed .stream {
     overflow: hidden;
-    flex: 1;
     font-family: var(--mono);
     font-size: 10.5px;
     line-height: 1.55;
@@ -288,7 +387,7 @@
     grid-template-columns: 46px 58px 1fr;
     gap: 7px;
     padding: 2px 0;
-    border-bottom: 1px dashed rgba(255, 255, 255, 0.045);
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.04);
     animation: slide-in 240ms ease both;
   }
   .ev .ts { color: var(--text-dim); }
@@ -301,101 +400,102 @@
   .ev[data-k="system"]   .kd { color: var(--warn); }
   .ev[data-k="error"]    .kd { color: var(--err); }
   @keyframes slide-in {
-    from { opacity: 0; transform: translateY(-5px); }
-    to   { opacity: 1; transform: none; }
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
   }
 
-  /* ---------- 右下：控制台 ---------- */
+  /* ---------- 右下：控制条 ---------- */
   #controls {
     bottom: 18px;
     right: 18px;
-    padding: 10px 12px;
     display: flex;
-    gap: 8px;
     align-items: center;
+    gap: 6px;
+    padding: 7px 9px;
   }
-  button {
+  #controls button {
     font-family: var(--mono);
-    font-size: 10.5px;
+    font-size: 10px;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--text);
-    background: rgba(255, 255, 255, 0.045);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #b7c5e4;
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(150, 185, 255, 0.12);
     border-radius: 7px;
-    padding: 6px 11px;
+    padding: 6px 10px;
     cursor: pointer;
-    transition: all 140ms ease;
+    transition: background 160ms, color 160ms, border-color 160ms, transform 120ms;
   }
-  button:hover {
-    color: var(--text-hi);
-    border-color: rgba(0, 229, 255, 0.5);
-    box-shadow: 0 0 14px rgba(0, 229, 255, 0.22);
+  #controls button:hover {
+    background: rgba(90, 190, 255, 0.14);
+    border-color: rgba(90, 190, 255, 0.4);
+    color: #eaf4ff;
   }
-  button:active { transform: translateY(1px); }
-  button.danger:hover {
-    border-color: rgba(255, 93, 93, 0.55);
-    box-shadow: 0 0 14px rgba(255, 93, 93, 0.22);
+  #controls button:active { transform: translateY(1px); }
+  #controls button.danger:hover {
+    background: rgba(255, 93, 93, 0.14);
+    border-color: rgba(255, 93, 93, 0.4);
+    color: #ffd9d9;
   }
   #status-pill {
     display: flex;
     align-items: center;
     gap: 6px;
     font-family: var(--mono);
-    font-size: 10px;
-    letter-spacing: 0.1em;
+    font-size: 9.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
     color: var(--text-dim);
     margin-left: auto;
-    padding-left: 4px;
+    padding-left: 6px;
   }
   #status-pill i {
     width: 7px;
     height: 7px;
     border-radius: 50%;
     background: var(--warn);
-    box-shadow: 0 0 9px currentColor;
+    box-shadow: 0 0 10px currentColor;
   }
-  #status-pill.live i { background: var(--ok); }
+  #status-pill.live i { background: var(--ok); animation: breathe 2s ease-in-out infinite; }
   #status-pill.dead i { background: var(--err); }
 
   /* ---------- 左下：节点详情 ---------- */
   #inspector {
     bottom: 18px;
     left: 18px;
-    width: 300px;
+    width: 292px;
     padding: 12px 14px;
     display: none;
   }
   #inspector.on { display: block; }
   #inspector .row {
-    display: grid;
-    grid-template-columns: 62px 1fr;
-    gap: 8px;
-    font-size: 11px;
-    line-height: 1.5;
+    display: flex;
+    gap: 10px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    padding: 2.5px 0;
   }
   #inspector .row .k {
-    font-family: var(--mono);
-    font-size: 9px;
-    letter-spacing: 0.12em;
+    width: 54px;
     color: var(--text-dim);
+    letter-spacing: 0.12em;
     text-transform: uppercase;
-    padding-top: 2px;
+    flex: none;
   }
-  #inspector .row .v { color: var(--text-hi); word-break: break-word; }
+  #inspector .row .v { color: var(--text-hi); word-break: break-all; }
   #inspector .txt {
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px dashed rgba(255, 255, 255, 0.08);
+    margin-top: 9px;
+    padding-top: 9px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.07);
     font-size: 11px;
     line-height: 1.6;
-    color: var(--text);
-    max-height: 140px;
+    color: #a9b8d6;
+    max-height: 130px;
     overflow: auto;
-    white-space: pre-wrap;
+    word-break: break-word;
   }
 
-  /* 离线遮罩 */
+  /* ---------- 断线遮罩 ---------- */
   #offline {
     position: fixed;
     z-index: 9;
@@ -414,9 +514,14 @@
     text-shadow: 0 0 18px rgba(255, 93, 93, 0.5);
   }
 
+  @media (max-width: 1180px) {
+    #topbar { width: min(560px, calc(100vw - 40px)); }
+    #topbar h1 { font-size: 24px; }
+  }
   @media (max-width: 860px) {
     #feed, #legend { display: none; }
     #hud { width: calc(100vw - 36px); }
+    #topbar { top: 14px; }
   }
 </style>
 </head>
@@ -425,11 +530,31 @@
 <div id="cy"></div>
 <div id="offline"><div>◍ link lost — retrying</div></div>
 
+<!-- ============ 顶部铭牌：标题 / 搜索 / 统计 ============ -->
+<header id="topbar">
+  <h1>PSS · 记忆脑图</h1>
+  <div class="sub">parameterized session state · live probe</div>
+  <div class="searchwrap">
+    <input id="search" type="search" placeholder="搜索记忆内容，回车定位" autocomplete="off" spellcheck="false" />
+  </div>
+  <div class="stats">
+    <span>节点 <b id="t-nodes">0</b></span>
+    <span class="sep">·</span>
+    <span>连线 <b id="t-links">0</b></span>
+    <span class="sep">·</span>
+    <span>会话 <b id="t-sessions">0</b></span>
+    <span class="sep">·</span>
+    <span>检索 <b id="t-retrievals">0</b></span>
+    <span class="sep">·</span>
+    <span>已编译 <b id="t-compiles">0</b></span>
+  </div>
+</header>
+
 <!-- ============ 主 HUD ============ -->
 <section class="panel" id="hud">
   <div class="brand">
     <span class="dot"></span>
-    <h1>PSS · Brain</h1>
+    <h1>PSS</h1>
     <span class="tag">v<span id="ver">0</span></span>
   </div>
   <div class="metrics">
@@ -441,14 +566,6 @@
       <div class="k">Links</div>
       <div class="v" id="m-links">0</div>
     </div>
-    <div class="metric">
-      <div class="k">Sessions</div>
-      <div class="v" id="m-sessions">0</div>
-    </div>
-    <div class="metric">
-      <div class="k">Retrievals</div>
-      <div class="v" id="m-retrievals">0</div>
-    </div>
     <div class="metric wide">
       <div class="k">System</div>
       <div class="v" id="m-status">booting…</div>
@@ -458,8 +575,8 @@
 </section>
 
 <!-- ============ 图例 / 过滤 ============ -->
-<section class="panel" id="legend">
-  <div class="cap">Memory classes</div>
+<section id="legend">
+  <div class="cap">Memory regions</div>
   <div id="legend-rows"></div>
 </section>
 
@@ -503,32 +620,38 @@
  *     而且断线重连、多标签页共存都是免费的。
  *   - 增量合并而不是整图重建：新节点用 cy.add() 追加，布局 randomize:false
  *     用老位置当种子，所以图是"长出来"的，不是"跳一下"。
+ *   - 分区标题（语言中枢 / 海马体那种大字）不是后端数据，而是前端合成的 hub
+ *     节点：每类一个，连到该类所有节点。力导向会把同类节点拉成一团，
+ *     于是"记忆分区"自己长出来了，不需要后端理解什么叫分区。
  * ========================================================================== */
 (function () {
   'use strict';
+  window.__pssDebug = /dbg/.test(location.search);
 
   /* ---------------------------------------------------------------- 常量 */
 
   const POLL_MS = 3000;          // 轮询间隔
-  const POLL_FAST_MS = 1200;     // 有新事件后的加速轮询
+  const POLL_FAST_MS = 1200;     // 有新节点后的加速轮询
   const SPARK_BUCKETS = 34;      // HUD 火花线柱数
   const MAX_FEED = 40;           // 事件流保留条数
+  const HUB_EDGE = 'hub';        // 分区 hub 连边的 kind
+  const HUB_LINK = 'hub-link';   // hub 之间互相撑开的不可见连边
 
-  /** 五种记忆节点的视觉定义：颜色 / 形状 / 尺寸 / 中文名。 */
+  /** 五种记忆节点的视觉定义 + 分区名。 */
   const KIND = {
-    user:      { color: '#ff4d6d', shape: 'ellipse', size: 40, label: '用户输入', glyph: '❯' },
-    intent:    { color: '#00e5ff', shape: 'diamond', size: 50, label: 'PSS 意图', glyph: '⟁' },
-    knowledge: { color: '#ffc857', shape: 'round-rectangle', size: 40, label: '知识片段', glyph: '▤' },
-    answer:    { color: '#4d7cff', shape: 'ellipse', size: 40, label: 'AI 回答', glyph: '✦' },
-    system:    { color: '#a06bff', shape: 'hexagon', size: 36, label: '系统事件', glyph: '⚙' }
+    user:      { color: '#ff5470', shape: 'ellipse',         label: '用户输入', region: '语言输入 · VOICE' },
+    intent:    { color: '#22e0ff', shape: 'round-diamond',   label: 'PSS 意图', region: '意图中枢 · INTENT' },
+    knowledge: { color: '#ffcf6b', shape: 'ellipse',          label: '知识片段', region: '长期记忆库 · LIBRARY' },
+    answer:    { color: '#5b8cff', shape: 'ellipse',         label: 'AI 回答',  region: '表达中枢 · EXPRESSION' },
+    system:    { color: '#b07cff', shape: 'round-hexagon',   label: '系统事件', region: '代谢 · METABOLISM' }
   };
 
   /** 四种连线的颜色与线型。 */
   const LINK = {
-    parametrize: { color: '#00e5ff', style: 'dashed' },
-    retrieve:    { color: '#ffc857', style: 'solid' },
-    compose:     { color: '#4d7cff', style: 'solid' },
-    compile:     { color: '#a06bff', style: 'dotted' }
+    parametrize: { color: '#22e0ff', style: 'solid' },
+    retrieve:    { color: '#ffcf6b', style: 'solid' },
+    compose:     { color: '#5b8cff', style: 'solid' },
+    compile:     { color: '#b07cff', style: 'dotted' }
   };
 
   const $ = (id) => document.getElementById(id);
@@ -543,6 +666,8 @@
     seenEvents: new Set(),    // 已渲染的事件 id
     spark: new Array(SPARK_BUCKETS).fill(0),
     lastCount: 0,             // 上一帧节点数（0 = 还没画过，需要 fit）
+    query: '',                // 搜索词
+    space: null,              // 布局坐标空间（首次布局时确定）
     retry: 0
   };
 
@@ -552,29 +677,31 @@
     selector: 'node[k="' + kind + '"]',
     style: {
       'background-color': meta.color,
-      'background-opacity': 0.92,
+      // 中心半透明 + 边框实色 + 强外发光 = 参考图那种"光环里一颗星"的观感
+      'background-opacity': 0.22,
       shape: meta.shape,
-      label: 'data(label)',
-      color: '#dfe8ff',
+      label: '',
+      color: '#c9d6ef',
       'font-family': 'JetBrains Mono, Consolas, monospace',
-      'font-size': 10,
+      'font-size': 8,
       'font-weight': 500,
       'text-wrap': 'wrap',
-      'text-max-width': 104,
+      'text-max-width': 86,
       'text-valign': 'bottom',
-      'text-margin-y': 7,
-      'text-outline-width': 3,
-      'text-outline-color': '#05060a',
-      'text-outline-opacity': 0.9,
-      'border-width': 1,
-      'border-color': 'rgba(255,255,255,0.35)',
-      'shadow-blur': 26,
+      'text-margin-y': 5,
+      'text-outline-width': 2.5,
+      'text-outline-color': '#04050a',
+      'text-outline-opacity': 0.95,
+      'border-width': 1.4,
+      'border-opacity': 0.85,
+      'border-color': meta.color,
+      'shadow-blur': 34,
       'shadow-color': meta.color,
-      'shadow-opacity': 0.85,
+      'shadow-opacity': 0.95,
       'shadow-offset-x': 0,
       'shadow-offset-y': 0,
-      'transition-property': 'background-color, border-width, shadow-opacity, opacity',
-      'transition-duration': 260
+      'transition-property': 'background-opacity, border-width, shadow-opacity, opacity',
+      'transition-duration': 240
     }
   }));
 
@@ -583,17 +710,34 @@
     style: {
       'curve-style': 'bezier',
       'line-color': meta.color,
-      'line-opacity': 0.55,
+      'line-opacity': 0.17,
       'line-style': meta.style,
-      width: 1.3,
-      'target-arrow-shape': 'triangle',
-      'target-arrow-color': meta.color,
-      'arrow-scale': 0.62,
-      'shadow-blur': 10,
+      width: 0.85,
+      'shadow-blur': 8,
       'shadow-color': meta.color,
-      'shadow-opacity': 0.5
+      'shadow-opacity': 0.25
     }
   }));
+
+  /**
+   * 覆盖规则：必须排在 kindStyle 之后。
+   * 知识片段 / 回答默认不写标签（几百个节点全写字会糊成一片），
+   * 只在 hover、搜索命中、新节点脉冲时把标签露出来。
+   */
+  const extraStyle = [
+    {
+      selector: 'node.hot, node.match, node.showlabel, node.lbl',
+      style: { label: 'data(label)' }
+    },
+    {
+      selector: 'node.faded',
+      style: { label: '' }
+    },
+    {
+      selector: 'node[k="user"].showlabel, node[k="intent"].showlabel',
+      style: { label: 'data(label)' }
+    }
+  ];
 
   /** @type {any} 图形实例，等 cytoscape 就绪后在 boot() 里创建 */
   let cy = null;
@@ -605,8 +749,8 @@
     wheelSensitivity: 0.22,
     boxSelectionEnabled: false,
     autounselectify: false,
-    minZoom: 0.15,
-    maxZoom: 3.2,
+    minZoom: 0.12,
+    maxZoom: 3.4,
     pixelRatio: 'auto',
     style: [
       {
@@ -616,93 +760,215 @@
           'overlay-opacity': 0,
           // 尺寸用 mapper 而不是逐元素 override：力导向布局读的是 style 里的宽高，
           // 用 override 会让它以为所有节点一样大，于是节点会叠在一起。
-          width: 'mapData(w, 0, 1, 30, 46)',
-          height: 'mapData(w, 0, 1, 30, 46)'
+          // 低权重节点只有 7px，远看就是一颗星尘点，这是"星云感"的来源。
+          width: 'mapData(w, 0, 1, 5, 22)',
+          height: 'mapData(w, 0, 1, 5, 22)'
         }
       },
       {
         selector: 'edge',
+        style: { 'overlay-opacity': 0 }
+      },
+      /* ---------- 分区 hub：大字标题 + 一颗星 ---------- */
+      {
+        selector: 'node[k="hub"]',
         style: {
+          width: 9,
+          height: 9,
+          'background-color': 'data(color)',
+          'background-opacity': 0.9,
+          'border-width': 0,
+          label: 'data(label)',
+          color: 'data(color)',
+          'font-family': 'var(--sans)',
+          'font-size': 17,
+          'font-weight': 700,
+          'letter-spacing': 0.02,
+          'text-valign': 'top',
+          'text-halign': 'center',
+          'text-margin-y': -9,
+          'text-outline-width': 4,
+          'text-outline-color': '#04050a',
+          'text-outline-opacity': 0.9,
+          'shadow-blur': 26,
+          'shadow-opacity': 0.9,
+          'shadow-color': 'data(color)',
           'overlay-opacity': 0
         }
       },
       {
-        selector: '.faded',
-        style: { opacity: 0.09 }
+        selector: 'edge[k="hub"]',
+        style: {
+          'curve-style': 'straight',
+          'line-color': 'data(color)',
+          'line-opacity': 0.07,
+          width: 0.6,
+          'target-arrow-shape': 'none'
+        }
       },
       {
-        selector: '.hot',
+        selector: 'edge[k="hub-link"]',
+        style: { 'line-opacity': 0, width: 0.1, 'target-arrow-shape': 'none' }
+      },
+      /* ---------- 交互态 ---------- */
+      {
+        selector: '.faded',
+        style: { opacity: 0.07 }
+      },
+      {
+        selector: 'node.hot',
         style: {
-          'border-width': 3,
-          'border-color': '#ffffff',
+          'border-width': 2,
+          'background-opacity': 0.55,
           'shadow-opacity': 1,
-          'shadow-blur': 44
+          'shadow-blur': 48
+        }
+      },
+      {
+        selector: 'node.match',
+        style: {
+          'border-width': 2.4,
+          'background-opacity': 0.62,
+          'shadow-blur': 52,
+          'shadow-opacity': 1
         }
       },
       {
         selector: 'node:selected',
         style: {
-          'border-width': 3,
+          'border-width': 2.4,
           'border-color': '#ffffff',
-          'background-opacity': 1,
+          'background-opacity': 0.7,
           'shadow-opacity': 1,
           'shadow-blur': 46
         }
       },
       {
         selector: 'edge:selected',
-        style: { width: 2.4, 'line-opacity': 1 }
+        style: { width: 2, 'line-opacity': 0.9 }
       }
-    ].concat(kindStyle, linkStyle),
-    layout: layoutOptions(false, true)
+    ].concat(kindStyle, linkStyle, extraStyle),
+    layout: { name: 'preset' }
     });
   }
 
+  /* ------------------------------------------------------- 分区布局 */
+
   /**
-   * cose 力导向参数。
-   * @param {boolean} fit - 是否在布局结束后把视图套住全图。
-   * @param {boolean} randomize - 是否随机初始坐标。
-   *   空图必须 true（否则所有节点从原点出发，cose 会退化成一条线）；
-   *   增量必须 false（用现有坐标当种子，图才是"生长"而不是"跳变"）。
+   * 为什么不用力导向：cose 会把五个类别混成一个球，hub 全挤在中心，
+   * 而参考图那种"脑区"需要分区之间留白。所以这里自己算坐标：
+   *   1. 五个分区按圆周均匀分布（hub 就是分区的锚点）；
+   *   2. 分区内的成员用黄金角螺旋铺开，半径按序号开方增长（近处密、远处疏）；
+   *   3. 位置只跟"序号 + id 哈希"有关，所以新增节点只会出现在最外圈，
+   *      已经存在的节点不会被重新洗牌 —— 这是"图在生长"的手感来源。
    */
-  function layoutOptions(fit, randomize) {
-    return {
-      name: 'cose',
-      animate: true,
-      animationDuration: 620,
-      animationEasing: 'ease-out',
-      // 空图必须随机撒点，否则所有节点从原点出发，力导向会退化成一条直线；
-      // 增量更新必须不随机，用现有坐标当种子，图才是"生长"而不是"跳变"。
-      randomize: randomize === true,
-      fit: fit,
-      padding: 110,
-      // 度数越高斥力越强，枢纽节点自己撑开一片空间
-      nodeRepulsion: function (node) {
-        return 16000 + Math.min(node.degree(false), 8) * 2400;
-      },
-      // 不同类型的关系给不同边长，因果链看起来才不挤
-      idealEdgeLength: function (edge) {
-        const kind = edge.data('k');
-        if (kind === 'compile') return 260;
-        if (kind === 'retrieve') return 215;
-        if (kind === 'parametrize') return 190;
-        return 175;
-      },
-      edgeElasticity: function (edge) {
-        return edge.data('k') === 'retrieve' ? 100 : 140;
-      },
-      gravity: 34,
-      numIter: 2500,
-      initialTemp: 220,
-      coolingFactor: 0.95,
-      minTemp: 0.5,
-      nodeOverlap: 44,
-      componentSpacing: 160,
-      nestingFactor: 1.15
-    };
+  const MARGIN = { left: 224, right: 352, top: 126, bottom: 74 };
+  let layoutTimer = 0;
+  let spaceDirty = false;   // 视口尺寸变过 → 需要重新取景
+
+  /** FNV-1a → [0,1)，给每个节点一个稳定的抖动值。 */
+  function hash01(text) {
+    let h = 2166136261;
+    for (let i = 0; i < text.length; i += 1) {
+      h ^= text.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return ((h >>> 0) % 10000) / 10000;
   }
 
+  /** 计算全部节点的目标坐标（模型坐标 = 屏幕像素，前提是 zoom 1 / pan 0）。 */
+  function layoutPositions() {
+    // 用视口尺寸而不是 cy.width()：cytoscape 会在初始化时缓存容器尺寸，
+    // 首帧还没排版完时它可能拿到 0，结果整张图被挤在左上角。
+    const vw = window.innerWidth || document.documentElement.clientWidth || 1440;
+    const vh = window.innerHeight || document.documentElement.clientHeight || 900;
+    if (!state.space || Math.abs(state.space.w - vw) > 8 || Math.abs(state.space.h - vh) > 8) {
+      state.space = { w: vw, h: vh };
+      spaceDirty = true;
+    }
+    const w = state.space.w;
+    const h = state.space.h;
 
+    const freeLeft = MARGIN.left;
+    const freeRight = Math.max(freeLeft + 220, w - MARGIN.right);
+    const freeTop = MARGIN.top;
+    const freeBottom = Math.max(freeTop + 200, h - MARGIN.bottom);
+
+    const cx = (freeLeft + freeRight) / 2;
+    const cyy = (freeTop + freeBottom) / 2;
+    const radius = Math.max(140, Math.min((freeRight - freeLeft) / 2, (freeBottom - freeTop) / 2));
+    const ring = radius * 0.74;         // hub 所在的圆
+    const spread = radius * 0.24;       // 每个分区自己的半径
+
+    const members = cy.nodes().filter((n) => n.data('k') !== 'hub');
+    const kinds = [];
+    for (const node of members) {
+      const kind = node.data('k');
+      if (kinds.indexOf(kind) < 0) kinds.push(kind);
+    }
+    kinds.sort((a, b) => Object.keys(KIND).indexOf(a) - Object.keys(KIND).indexOf(b));
+
+    const positions = {};
+    kinds.forEach((kind, index) => {
+      const angle = -Math.PI / 2 + (index * 2 * Math.PI) / Math.max(kinds.length, 1);
+      const hx = cx + Math.cos(angle) * ring;
+      const hy = cyy + Math.sin(angle) * ring;
+      positions['hub:' + kind] = { x: hx, y: hy };
+
+      const group = members.filter((n) => n.data('k') === kind);
+      const n = group.length;
+      group.forEach((node, i) => {
+        const t = n <= 1 ? 0 : i / (n - 1);
+        const r = spread * Math.sqrt(t) * (0.82 + hash01(node.id()) * 0.36);
+        const theta = i * 2.399963229728653 + index * 1.7 + hash01(node.id() + 'a') * 1.1;
+        positions[node.id()] = { x: hx + Math.cos(theta) * r, y: hy + Math.sin(theta) * r };
+      });
+    });
+    return positions;
+  }
+
+  function relayout(fit) {
+    // 布局是重活，短时间内多次合并只跑最后一次，避免抖动
+    clearTimeout(layoutTimer);
+    layoutTimer = setTimeout(() => {
+      if (cy.nodes().length === 0) return;
+      const positions = layoutPositions();
+      cy.layout({
+        name: 'preset',
+        positions: (node) => positions[node.id()] || { x: (state.space ? state.space.w : window.innerWidth) / 2, y: (state.space ? state.space.h : window.innerHeight) / 2 },
+        fit: false,
+        animate: true,
+        animationDuration: 620,
+        animationEasing: 'ease-out'
+      }).run();
+      // 坐标是按视口算的像素，布局跑完再按可见区域取景。
+      // 视口尺寸刚变过（首次加载、headless 窗口 settle、用户改窗口）也要重新取景。
+      if (fit === true || spaceDirty) {
+        spaceDirty = false;
+        setTimeout(() => fitView(true), 700);
+      }
+    }, 90);
+  }
+
+  /**
+   * 取景：把整张图塞进"HUD 与事件流之间"的可见区域。
+   * 直接用 cy.fit() 会连同被面板遮住的边距一起算，图就被推到一侧；
+   * 这里手工算缩放和位移，缩放范围也限死，避免极端尺寸下糊成一片。
+   */
+  function fitView(animate) {
+    if (cy.nodes().length === 0) return;
+    const vw = window.innerWidth || 1440;
+    const vh = window.innerHeight || 900;
+    const viewW = Math.max(320, vw - MARGIN.left - MARGIN.right);
+    const viewH = Math.max(280, vh - MARGIN.top - MARGIN.bottom);
+    const box = cy.elements().boundingBox({});
+    if (!box.w || !box.h) return;
+    const scale = Math.max(0.35, Math.min(1.45, Math.min(viewW / box.w, viewH / box.h) * 0.94));
+    const panX = MARGIN.left + viewW / 2 - (box.x1 + box.w / 2) * scale;
+    const panY = MARGIN.top + viewH / 2 - (box.y1 + box.h / 2) * scale;
+    const duration = animate === false ? 0 : 520;
+    cy.animate({ zoom: scale, pan: { x: panX, y: panY } }, { duration });
+  }
 
   /* ------------------------------------------------------- HUD 渲染 */
 
@@ -714,8 +980,8 @@
     const bars = sparksEl.children;
     for (let i = 0; i < SPARK_BUCKETS; i++) {
       const v = state.spark[i];
-      bars[i].style.height = (4 + (v / max) * 22).toFixed(1) + 'px';
-      bars[i].style.opacity = String(0.28 + (v / max) * 0.72);
+      bars[i].style.height = (4 + (v / max) * 20).toFixed(1) + 'px';
+      bars[i].style.opacity = String(0.25 + (v / max) * 0.75);
     }
   }
 
@@ -735,24 +1001,26 @@
     return s + 's';
   }
 
+  const num = (n) => (typeof n === 'number' ? String(n) : '0');
+
   function applyStats(stats) {
     if (!stats) return;
-    $('m-nodes').textContent = stats.nodes ?? 0;
-    $('m-links').textContent = stats.links ?? 0;
-    $('m-sessions').textContent = stats.sessions ?? 0;
-    $('m-retrievals').textContent = stats.retrievals ?? 0;
-    $('m-status').textContent = 'up ' + fmtUptime(stats.uptimeMs) + ' · ' + (stats.compiles ?? 0) + ' compiled';
+    $('m-nodes').textContent = num(stats.nodes);
+    $('m-links').textContent = num(stats.links);
+    $('m-status').textContent = 'up ' + fmtUptime(stats.uptimeMs) + ' · ' + num(stats.compiles) + ' compiled';
     $('ver').textContent = String(state.version >= 0 ? state.version : 0);
 
-    // 图例计数
+    $('t-nodes').textContent = num(stats.nodes);
+    $('t-links').textContent = num(stats.links);
+    $('t-sessions').textContent = num(stats.sessions);
+    $('t-retrievals').textContent = num(stats.retrievals);
+    $('t-compiles').textContent = num(stats.compiles);
+
     const byKind = stats.byKind || {};
     for (const row of $('legend-rows').children) {
-      const kind = row.dataset.k;
-      row.querySelector('.ct').textContent = bay(byKind[kind]);
+      row.querySelector('.ct').textContent = num(byKind[row.dataset.k]);
     }
   }
-
-  function bay(n) { return typeof n === 'number' ? String(n) : '0'; }
 
   /* ------------------------------------------------------- 图例 */
 
@@ -778,18 +1046,27 @@
   }
 
   function applyFilter() {
+    if (!cy) return;
     cy.batch(() => {
       cy.nodes().forEach((node) => {
-        const hide = state.hidden.has(node.data('k'));
-        node.style('display', hide ? 'none' : 'element');
+        if (node.data('k') === 'hub') {
+          node.style('display', state.hidden.has(node.data('ref')) ? 'none' : 'element');
+          return;
+        }
+        node.style('display', state.hidden.has(node.data('k')) ? 'none' : 'element');
+      });
+      cy.edges().forEach((edge) => {
+        const src = edge.source().data('k');
+        const hidden = src === 'hub' ? state.hidden.has(edge.data('ref')) : state.hidden.has(src);
+        edge.style('display', hidden ? 'none' : 'element');
       });
     });
+    if (state.query) runSearch(state.query);
   }
 
   /* ------------------------------------------------------- 图数据合并 */
 
   function nodeToElement(node) {
-    const meta = KIND[node.kind] || KIND.system;
     const weight = typeof node.weight === 'number' ? node.weight : 1;
     // 服务端给的 label 可能很长（它要兼顾终端输出）。图上按类别给不同长度：
     // 语义锚点（用户提问 / PSS 意图）留全一点，知识片段和回答只留前缀，
@@ -818,6 +1095,79 @@
   }
 
   /**
+   * 重建分区骨架：每类一个 hub 节点 + 到该类所有节点的连边，hub 之间用不可见长边撑开。
+   * 每次合并后整体重算（几百个元素的开销可以忽略，而且不会有残留脏边）。
+   */
+  function rebuildHubs() {
+    const nodes = cy.nodes().filter((n) => n.data('k') !== 'hub');
+    if (nodes.length === 0) return;
+
+    cy.batch(() => {
+      cy.edges().filter((e) => e.data('k') === HUB_EDGE || e.data('k') === HUB_LINK).remove();
+
+      const hubs = [];
+      for (const [kind, meta] of Object.entries(KIND)) {
+        const members = nodes.filter((n) => n.data('k') === kind);
+        if (members.length === 0) continue;
+
+        const hubId = 'hub:' + kind;
+        if (!cy.getElementById(hubId).length) {
+          cy.add({
+            group: 'nodes',
+            data: { id: hubId, label: meta.region, k: 'hub', ref: kind, color: meta.color, w: 1, t: Date.now() }
+          });
+        }
+        const hub = cy.getElementById(hubId);
+        hubs.push(hub);
+
+        const edges = members.map((m) => ({
+          group: 'edges',
+          data: { id: hubId + '>' + m.id(), source: hubId, target: m.id(), k: HUB_EDGE, ref: kind, color: meta.color }
+        }));
+        cy.add(edges);
+      }
+
+      // hub 两两之间拉一条隐藏长边，分区才会散开而不是挤成一坨
+      for (let i = 0; i < hubs.length; i++) {
+        for (let j = i + 1; j < hubs.length; j++) {
+          cy.add({
+            group: 'edges',
+            data: {
+              id: 'hub-link:' + hubs[i].data('ref') + ':' + hubs[j].data('ref'),
+              source: hubs[i].id(),
+              target: hubs[j].id(),
+              k: HUB_LINK
+            }
+          });
+        }
+      }
+    });
+  }
+
+  /**
+   * 标签策略：几百个节点全写字必然糊成一片（参考那种脑图也只标注少数节点）。
+   * 这里只给"图上看起来重要的"节点打标签：度数 ≥ 2 的连接点，或权重很高的一类。
+   * 其余节点 hover 时才显示（见 .showlabel）。
+   */
+  function refreshLabels() {
+    if (!cy) return;
+    cy.batch(() => {
+      // 只标注"用户提问"这类语义最重的节点，其余靠 hover / 搜索点亮。
+      // 参考那种脑图也是几百个点里只写十几行小字，全写字等于没有重点。
+      const candidates = [];
+      cy.nodes().forEach((node) => {
+        const kind = node.data('k');
+        if (kind === 'hub') return;
+        const weight = Number(node.data('w')) || 0;
+        node.toggleClass('lbl', false);
+        if (kind === 'user' || weight >= 0.92) candidates.push({ node, weight });
+      });
+      candidates.sort((a, b) => b.weight - a.weight);
+      candidates.slice(0, 22).forEach((item) => item.node.addClass('lbl'));
+    });
+  }
+
+  /**
    * 把服务端快照合并进图。
    * @returns {number} 新增节点数
    */
@@ -826,20 +1176,20 @@
     const incomingLinks = graph.links || [];
 
     // 节点变少 = 服务端 reset 过，直接重建，别留幽灵节点
-    if (incomingNodes.length < cy.nodes().length) {
+    if (incomingNodes.length < cy.nodes().filter((n) => n.data('k') !== 'hub').length) {
       cy.elements().remove();
     }
 
     const snapshotNodes = new Set(incomingNodes.map((n) => n.id));
 
     // 删掉服务端已经不存在的（比如环形缓冲裁剪掉的旧节点）
-    const staleNodes = cy.nodes().filter((n) => !snapshotNodes.has(n.id()));
+    const staleNodes = cy.nodes().filter((n) => n.data('k') !== 'hub' && !snapshotNodes.has(n.id()));
     if (staleNodes.length > 0) {
       cy.remove(staleNodes.connectedEdges().union(staleNodes));
     }
 
-    const wasEmpty = cy.nodes().length === 0;
-    const existingNodes = new Set(cy.nodes().map((n) => n.id()));
+    const wasEmpty = cy.nodes().filter((n) => n.data('k') !== 'hub').length === 0;
+    const existingNodes = new Set(cy.nodes().filter((n) => n.data('k') !== 'hub').map((n) => n.id()));
     const fresh = [];
     for (const node of incomingNodes) {
       if (!existingNodes.has(node.id)) fresh.push(nodeToElement(node));
@@ -847,16 +1197,17 @@
 
     const existingEdges = new Set(cy.edges().map((e) => e.id()));
     const freshEdges = [];
+    const freshIds = new Set(fresh.map((n) => n.data.id));
     for (const link of incomingLinks) {
       if (existingEdges.has(link.id)) continue;
       // 端点必须存在，否则 cytoscape 会丢掉这条边
-      if (!existingNodes.has(link.source) && !fresh.some((n) => n.data.id === link.source)) continue;
-      if (!existingNodes.has(link.target) && !fresh.some((n) => n.data.id === link.target)) continue;
+      if (!existingNodes.has(link.source) && !freshIds.has(link.source)) continue;
+      if (!existingNodes.has(link.target) && !freshIds.has(link.target)) continue;
       freshEdges.push(linkToElement(link));
     }
 
     if (fresh.length === 0 && freshEdges.length === 0) {
-      if (forceFit) fitAll(false);
+      if (forceFit) fitView(false);
       applyFilter();
       return 0;
     }
@@ -866,29 +1217,17 @@
       cy.add(freshEdges);
     });
 
+    rebuildHubs();
+    refreshLabels();
+
     // 新节点脉冲一下，视觉上"这条记忆刚写进来"
-    const pulsed = cy.nodes().filter((n) => fresh.some((f) => f.data.id === n.id()));
+    const pulsed = cy.nodes().filter((n) => freshIds.has(n.id()));
     pulsed.addClass('hot');
     setTimeout(() => pulsed.removeClass('hot'), 1400);
 
     applyFilter();
-    relayout(wasEmpty || forceFit, wasEmpty);
+    relayout(wasEmpty || forceFit);
     return fresh.length;
-  }
-
-  let layoutTimer = 0;
-  function relayout(fit, randomize) {
-    // 布局是重活，短时间内多次合并只跑最后一次，避免抖动
-    clearTimeout(layoutTimer);
-    layoutTimer = setTimeout(() => {
-      if (cy.nodes().length === 0) return;
-      cy.layout(layoutOptions(fit === true, randomize === true)).run();
-    }, 90);
-  }
-
-  function fitAll(animate) {
-    if (cy.nodes().length === 0) return;
-    cy.animate({ fit: { eles: cy.elements(), padding: 80 } }, { duration: animate === false ? 0 : 480 });
   }
 
   /* ------------------------------------------------------- 事件流 */
@@ -906,14 +1245,40 @@
       '<span class="ts">' + ts + '</span>' +
       '<span class="kd">' + String(event.kind || 'sys').slice(0, 5) + '</span>' +
       '<span class="ms"></span>';
-    row.querySelector('.ms').textContent = event.message || '';
+    const message = event.message || '';
+    row.querySelector('.ms').textContent = message.length > 46 ? message.slice(0, 45) + '…' : message;
+    row.querySelector('.ms').title = message;
     stream.prepend(row);
     while (stream.children.length > MAX_FEED) stream.lastElementChild.remove();
 
-    // 火花线：最后一个桶 +1
     state.spark.shift();
     state.spark.push(1);
     renderSparks();
+  }
+
+  /* ------------------------------------------------------- 搜索 */
+
+  let searchTimer = 0;
+  function runSearch(query) {
+    const q = query.trim().toLowerCase();
+    cy.batch(() => {
+      cy.elements().removeClass('faded').removeClass('match');
+      if (!q) return;
+      const hits = cy.nodes().filter((n) => {
+        if (n.data('k') === 'hub') return false;
+        const hay = (n.data('label') + ' ' + n.data('detail') + ' ' + n.id()).toLowerCase();
+        return hay.indexOf(q) >= 0;
+      });
+      if (hits.length === 0) return;
+      cy.elements().addClass('faded');
+      hits.removeClass('faded').addClass('match');
+      hits.connectedEdges().removeClass('faded');
+      // hub 也跟着亮：让你一眼看出这条记忆属于哪个脑区
+      const kinds = new Set(hits.map((n) => n.data('k')));
+      cy.nodes('[k = "hub"]').forEach((hub) => {
+        if (kinds.has(hub.data('ref'))) hub.removeClass('faded');
+      });
+    });
   }
 
   /* ------------------------------------------------------- 网络 */
@@ -992,6 +1357,7 @@
   /** 取消高亮。 */
   function clearHighlight() {
     cy.elements().removeClass('faded');
+    if (state.query) runSearch(state.query);
   }
 
   /** 绑定交互：必须在 cy 创建之后调用。 */
@@ -1000,11 +1366,19 @@
       const node = evt.target;
       const data = node.data();
       $('inspector').classList.add('on');
-      $('i-kind').textContent = (KIND[data.k] ? KIND[data.k].label : data.k) + ' · ' + data.k;
-      $('i-id').textContent = data.id;
-      $('i-weight').textContent = String(data.w);
-      $('i-time').textContent = new Date(data.t || Date.now()).toLocaleString('zh-CN');
-      $('i-detail').textContent = data.detail || '(无附加信息)';
+      if (data.k === 'hub') {
+        $('i-kind').textContent = '记忆分区 · hub';
+        $('i-id').textContent = data.id;
+        $('i-weight').textContent = String(node.degree(false));
+        $('i-time').textContent = new Date(data.t || Date.now()).toLocaleString('zh-CN');
+        $('i-detail').textContent = '这一簇是 ' + data.label + '，共 ' + node.degree(false) + ' 个节点。';
+      } else {
+        $('i-kind').textContent = (KIND[data.k] ? KIND[data.k].label : data.k) + ' · ' + data.k;
+        $('i-id').textContent = data.id;
+        $('i-weight').textContent = String(data.w);
+        $('i-time').textContent = new Date(data.t || Date.now()).toLocaleString('zh-CN');
+        $('i-detail').textContent = data.detail || '(无附加信息)';
+      }
       highlightNeighbours(node);
     });
 
@@ -1015,10 +1389,43 @@
       }
     });
 
-    cy.on('mouseover', 'node', (evt) => highlightNeighbours(evt.target));
-    cy.on('mouseout', 'node', () => clearHighlight());
+    cy.on('mouseover', 'node', (evt) => {
+      evt.target.addClass('showlabel');
+      highlightNeighbours(evt.target);
+    });
+    cy.on('mouseout', 'node', (evt) => {
+      evt.target.removeClass('showlabel');
+      clearHighlight();
+    });
 
-    $('btn-fit').addEventListener('click', () => fitAll(true));
+    // 滚轮缩放时顺势重新拿一次数据，保证"跟着记忆走"的感觉
+    $('search').addEventListener('input', (event) => {
+      const value = event.currentTarget.value;
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        state.query = value;
+        runSearch(value);
+      }, 140);
+    });
+    $('search').addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      const q = event.currentTarget.value.trim().toLowerCase();
+      if (!q) return;
+      const hits = cy.nodes().filter((n) => n.data('k') !== 'hub' &&
+        ((n.data('label') || '') + ' ' + (n.data('detail') || '')).toLowerCase().indexOf(q) >= 0);
+      if (hits.length > 0) {
+        cy.animate({ fit: { eles: hits.union(hits.connectedEdges()), padding: 160 } }, { duration: 520 });
+      }
+    });
+    $('search').addEventListener('keyup', (event) => {
+      if (event.key === 'Escape') {
+        event.currentTarget.value = '';
+        state.query = '';
+        runSearch('');
+      }
+    });
+
+    $('btn-fit').addEventListener('click', () => fitView(true));
 
     $('btn-pause').addEventListener('click', (event) => {
       state.paused = !state.paused;
@@ -1033,9 +1440,11 @@
         await getJson('/api/pss/demo', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ reset: true })
+          body: JSON.stringify({ reset: true, turns: 12 })
         });
+        cy.elements().remove();
         state.version = -1;
+        state.lastCount = 0;
         state.seenEvents.clear();
         $('stream').innerHTML = '';
         pollGraph();
@@ -1067,7 +1476,11 @@
       }
     });
 
-    window.addEventListener('resize', () => cy.resize());
+    window.addEventListener('resize', () => {
+      cy.resize();
+      state.space = null;
+      relayout(false);
+    });
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) pollGraph();
     });
@@ -1097,6 +1510,11 @@
     setStatus('live', 'connecting');
     pollGraph();
     pollEvents();
+    // 有些环境（headless、慢排版）首帧量到的视口偏小，稍后再校正一次
+    setTimeout(() => {
+      state.space = null;
+      relayout(true);
+    }, 1500);
     // 事件流比主图轻，可以更勤快
     setInterval(() => {
       if (!state.paused) pollEvents();

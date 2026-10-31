@@ -306,8 +306,10 @@ export class DashboardServer {
     if (method === 'POST' && path === '/api/pss/demo') {
       const body = await readJson(req);
       const sessionId = str(body, 'sessionId') ?? 'demo';
+      // turns 决定灌多少轮：演示用 12 轮刚好长出一片"星云"，测试用默认值也够
+      const turns = typeof body.turns === 'number' ? body.turns : undefined;
       if (body.reset === true) manager.resetGraph();
-      const stats = await manager.demo(sessionId);
+      const stats = await manager.demo(sessionId, turns);
       json(res, 200, { stats, graph: manager.graph() });
       return;
     }
