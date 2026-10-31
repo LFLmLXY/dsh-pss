@@ -7,7 +7,7 @@
 
 `O(1) 恒定存储` · `参数化意图` · `实时脑图探针` · `离线 LoRA 训练`
 
-[![status](https://img.shields.io/badge/status-v0.1%20%C2%B7%20working-00e5ff)](#路线图)
+[![status](https://img.shields.io/badge/status-v0.2%20%C2%B7%20working-00e5ff)](#路线图)
 [![tests](https://img.shields.io/badge/smoke-32%20passed-3ddc84)](#自检)
 [![runtime](https://img.shields.io/badge/node-%E2%89%A5%2022-4d7cff)](package.json)
 [![deps](https://img.shields.io/badge/runtime%20deps-1-ffc857)](package.json)
@@ -53,7 +53,7 @@ PSS 走第三条路：**把「这段会话里这个人关心什么」压进一�
 
 存储与上下文体积**与对话轮数无关**：第 5 轮和第 500 轮的 prompt 一样长。
 
-> v0.1 是**工程闭环**版本：接口契约、探针、脑图、训练流水线全部真实可跑，
+> v0.2 是**工程闭环**版本：接口契约、探针、脑图、训练流水线全部真实可跑，
 > 而「生成检索词的模型」默认用本地可解释的启发式实现（`intentBackend: 'local'`），
 > 装上 Python 后端后切 `'lora'` 即走真实 adapter。见 [诚实边界](#诚实边界)。
 
