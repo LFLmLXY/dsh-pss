@@ -14,12 +14,13 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { readFile, rename, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { Bm25Index, addEmbedding, normalize, tokenize } from './embed.js';
 import { DEFAULT_KNOWLEDGE, loadKnowledgeDir } from './knowledge.js';
 import { LocalIntentBackend } from './intent.js';
-import { StateStore } from './store.js';
+import { StateStore, stateFileName } from './store.js';
 import {
   NODE_KINDS,
   type CompileResult,
@@ -32,6 +33,7 @@ import {
   type KnowledgeChunk,
   type LinkKind,
   type LoraRef,
+  type MemoryChunk,
   type NodeKind,
   type PSSEvent,
   type PSSEventKind,
@@ -51,6 +53,10 @@ const CENTROID_EMA = 0.22;
 const LABEL_CHARS = 42;
 /** 回喂给模型的上下文包字符上限。 */
 const CONTEXT_CHARS = 1400;
+/** 单条记忆片段的字符上限（超长对话按此切块，切完各占一条）。 */
+const MEMORY_CHUNK_CHARS = 320;
+/** 每个会话最多保留多少条记忆片段（FIFO 淘汰，防止内存无界增长）。 */
+const MAX_MEMORY_CHUNKS = 800;
 
 /** 节点 id 前缀 → 语义（与 {@link NodeKind} 对齐）。 */
 const NODE_PREFIX: Record<NodeKind, string> = {
@@ -155,6 +161,15 @@ export class PSSManager {
   private knowledge: KnowledgeChunk[] = DEFAULT_KNOWLEDGE;
   private index: Bm25Index;
   private indexPromise: Promise<void> | null = null;
+
+  /**
+   * 会话记忆索引：sessionId → 该会话的片段 + 对应 BM25。
+   *
+   * 知识库记的是"世界知识"，装进来就不变；这里记的是"这场会话里说过什么"。
+   * 两者的生命周期不同，所以分开建索引，检索时再合并。
+   * `version` 是片段数，用来判断索引是否过期（片段增加就重建，成本是 O(n)，n 很小）。
+   */
+  private readonly memory = new Map<string, { chunks: MemoryChunk[]; index: Bm25Index; indexed: number }>();
 
   /** Python 训练后端地址（缺省不训练）。 */
   private readonly trainerUrl: string | undefined;
@@ -369,7 +384,7 @@ export class PSSManager {
     sessionId: string,
     role: 'user' | 'assistant' | 'system',
     text: string,
-    options: { probe?: boolean } = {}
+    options: { probe?: boolean; remember?: boolean } = {}
   ): Promise<PSSState> {
     await this.init();
     const state = await this.ensure(sessionId);
@@ -424,8 +439,142 @@ export class PSSManager {
       this.pushEvent('ingest', `${role} 吸收 ${trimmed.length} 字 → turns=${state.turns}`, sessionId);
     }
 
+    // 对话原文也进记忆片段索引——否则 retrieve 只能检索到世界知识库，
+    // "这场会话里说过什么"永远召回不到（这是之前最大的空洞）。
+    if (options.remember !== false) await this.appendMemory(sessionId, role, trimmed);
+
     await this.persist(state);
     return state;
+  }
+
+  /* ------------------------------------------------------------------------ */
+  /* 会话记忆：把"说过什么"变成可检索的片段                                     */
+  /* ------------------------------------------------------------------------ */
+
+  /** 记忆片段文件路径（与状态文件同目录，扩展名区分）。 */
+  private memoryPath(sessionId: string): string {
+    return join(this.store.rootDir, 'sessions', stateFileName(sessionId).replace(/\.json$/, '.memory.json'));
+  }
+
+  /** 取（或首次创建并加载）某会话的记忆容器。 */
+  private async memoryOf(sessionId: string): Promise<{ chunks: MemoryChunk[]; index: Bm25Index; indexed: number }> {
+    const cached = this.memory.get(sessionId);
+    if (cached) return cached;
+
+    const bucket = { chunks: [] as MemoryChunk[], index: new Bm25Index([]), indexed: 0 };
+    try {
+      const raw = await readFile(this.memoryPath(sessionId), 'utf8');
+      const parsed = JSON.parse(raw) as { chunks?: MemoryChunk[] };
+      if (Array.isArray(parsed.chunks)) bucket.chunks = parsed.chunks.filter((c) => typeof c?.text === 'string');
+    } catch {
+      // 文件不存在就是新会话，正常路径
+    }
+    this.memory.set(sessionId, bucket);
+    return bucket;
+  }
+
+  /** 记忆索引重建（片段数变了才重建；n 很小，全量重建比增量维护省事）。 */
+  private ensureMemoryIndex(sessionId: string, bucket: { chunks: MemoryChunk[]; index: Bm25Index; indexed: number }): Bm25Index {
+    if (bucket.indexed !== bucket.chunks.length) {
+      bucket.index = new Bm25Index(bucket.chunks.map((chunk) => tokenize(chunk.text)));
+      bucket.indexed = bucket.chunks.length;
+    }
+    return bucket.index;
+  }
+
+  /** 按 {@link MEMORY_CHUNK_CHARS} 把长文本切成若干片段（短文本原样一条）。 */
+  private static slice(text: string): string[] {
+    const flat = text.replace(/\s+/g, ' ').trim();
+    if (flat.length === 0) return [];
+    if (flat.length <= MEMORY_CHUNK_CHARS) return [flat];
+    const parts: string[] = [];
+    for (let offset = 0; offset < flat.length; offset += MEMORY_CHUNK_CHARS) {
+      parts.push(flat.slice(offset, offset + MEMORY_CHUNK_CHARS));
+    }
+    return parts;
+  }
+
+  /**
+   * 往会话记忆里追加一条（内部用）。
+   *
+   * 每轮对话都会走到这里，所以它必须便宜：只 push + 标脏，索引用懒重建。
+   */
+  private async appendMemory(
+    sessionId: string,
+    role: MemoryChunk['role'],
+    text: string
+  ): Promise<MemoryChunk[]> {
+    const bucket = await this.memoryOf(sessionId);
+    const added: MemoryChunk[] = [];
+    for (const [index, part] of PSSManager.slice(text).entries()) {
+      const chunk: MemoryChunk = {
+        id: `${sessionKey(sessionId)}#${bucket.chunks.length + index}`,
+        sessionId,
+        role,
+        text: part,
+        t: Date.now()
+      };
+      bucket.chunks.push(chunk);
+      added.push(chunk);
+    }
+    if (bucket.chunks.length > MAX_MEMORY_CHUNKS) {
+      bucket.chunks.splice(0, bucket.chunks.length - MAX_MEMORY_CHUNKS);
+      bucket.indexed = -1; // 强制重建
+    }
+    if (added.length > 0) await this.persistMemory(sessionId, bucket.chunks);
+    return added;
+  }
+
+  /** 原子写记忆片段文件（tmp + rename）。 */
+  private async persistMemory(sessionId: string, chunks: MemoryChunk[]): Promise<void> {
+    const path = this.memoryPath(sessionId);
+    const tmp = `${path}.tmp`;
+    try {
+      await this.store.ensure();
+      await writeFile(tmp, JSON.stringify({ format: 1, sessionId, chunks }), 'utf8');
+      await rename(tmp, path);
+    } catch (error) {
+      this.log(`[pss] 记忆片段落盘失败 ${sessionId}: ${String(error)}`);
+    }
+  }
+
+  /**
+   * 主动记一条结论（`pss_remember` 工具 / `POST /api/pss/remember`）。
+   *
+   * 这是「模型自己决定什么值得记」的入口：对话原文会被自动吸收，
+   * 但"决定了什么、为什么这么决定"往往只在思考里，需要显式写进来。
+   *
+   * @param sessionId - 会话 id。
+   * @param text - 要记住的结论（一两句话最好，会被切成片段）。
+   * @returns 写入后的状态版本。
+   */
+  async remember(sessionId: string, text: string): Promise<{ chunks: number; stateVersion: number }> {
+    await this.init();
+    const state = await this.ensure(sessionId);
+    const added = await this.appendMemory(sessionId, 'digest', text);
+    if (added.length === 0) return { chunks: 0, stateVersion: state.version };
+
+    // 结论也要影响参数状态，否则下一轮意图改写还是按老关键词走
+    await this.ingest(sessionId, 'system', text, { probe: false, remember: false });
+
+    const node = this.addNode(
+      'system',
+      `记忆写入：${clip(text)}`,
+      `digest
+${added.length} 片段
+${text}`,
+      0.8,
+      sessionId
+    );
+    this.addLink(node, node, 'compile');
+    this.pushEvent('ingest', `主动记忆 ${text.length} 字 → ${added.length} 片段`, sessionId);
+    return { chunks: added.length, stateVersion: (await this.ensure(sessionId)).version };
+  }
+
+  /** 会话记忆片段数（给 HTTP / Dashboard 用）。 */
+  async memoryCount(sessionId: string): Promise<number> {
+    const bucket = await this.memoryOf(sessionId);
+    return bucket.chunks.length;
   }
 
   /* ------------------------------------------------------------------------ */
@@ -477,15 +626,41 @@ export class PSSManager {
     const raw = this.index.search(queryTokens, this.topK);
     const scores = normalizeScores(raw);
 
-    const hits: RetrievalHit[] = raw.map((hit, position) => {
+    const knowledgeHits: RetrievalHit[] = raw.map((hit, position) => {
       const chunk = this.knowledge[hit.index];
       return {
         chunkId: chunk?.id ?? `#${hit.index}`,
         source: chunk?.source ?? 'unknown',
         text: chunk?.text ?? '',
-        score: Number(((scores[position] ?? 0)).toFixed(4))
+        score: Number(((scores[position] ?? 0)).toFixed(4)),
+        channel: 'knowledge'
       };
     });
+
+    // 第二个通道：本会话的记忆片段。会话里说过的话在这里，世界知识在知识库。
+    const bucket = await this.memoryOf(sessionId);
+    const memIndex = this.ensureMemoryIndex(sessionId, bucket);
+    const memRaw = memIndex.search(queryTokens, this.topK);
+    const memScores = normalizeScores(memRaw);
+    const memoryHits: RetrievalHit[] = memRaw
+      .map((hit, position): RetrievalHit | null => {
+        const chunk = bucket.chunks[hit.index];
+        if (!chunk) return null;
+        return {
+          chunkId: chunk.id,
+          source: `memory:${chunk.role}`,
+          text: chunk.text,
+          // 记忆片段是"这场会话自己的事"，同分时应该压过通用知识，给 1.12 加权
+          score: Number(Math.min(1, (memScores[position] ?? 0) * 1.12).toFixed(4)),
+          channel: 'memory' as const
+        };
+      })
+      .filter((hit): hit is RetrievalHit => hit !== null);
+
+    // 合并后按分数降序，上限 2×topK（知识 + 记忆各占一半以内），包长仍受 CONTEXT_CHARS 约束
+    const hits: RetrievalHit[] = [...knowledgeHits, ...memoryHits]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, Math.max(this.topK, this.topK * 2));
 
     // 探针 3：知识节点 + 连线
     const knowledgeNodes: string[] = [];
@@ -546,7 +721,8 @@ export class PSSManager {
       lines.push(`[PSS] keywords=${state.keywords.slice(0, 8).map((kw) => `${kw.term}:${kw.weight.toFixed(2)}`).join(' ')}`);
     }
     hits.forEach((hit, position) => {
-      lines.push(`--- ${position + 1}. ${hit.source} (score ${hit.score}) ---`, hit.text);
+      const tag = hit.channel === 'memory' ? '记忆' : '知识';
+      lines.push(`--- ${position + 1}. [${tag}] ${hit.source} (score ${hit.score}) ---`, hit.text);
     });
     if (hits.length === 0) lines.push('（本轮没有命中知识片段）');
 

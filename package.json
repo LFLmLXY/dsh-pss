@@ -1,6 +1,6 @@
 {
   "name": "dsh-pss",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Parametric Session State (PSS) for DeepSeek Harness — O(1) session storage, LoRA-compiled retrieval intent, and a live neural-graph dashboard that shows the model's memory flow.",
   "type": "module",
   "main": "dist/index.js",

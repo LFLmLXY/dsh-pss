@@ -141,6 +141,24 @@ export interface KnowledgeChunk {
   text: string;
 }
 
+/**
+ * 会话记忆片段。
+ *
+ * 知识库（{@link KnowledgeChunk}）是"世界知识"，装进来就不变；
+ * 记忆片段是"这场会话里说过什么、定过什么"，随对话增长。
+ * 两者分开存、分开建索引，检索时再合并——因为它们的生命周期完全不同：
+ * 知识库跟着包走，记忆片段跟着会话落盘。
+ */
+export interface MemoryChunk {
+  id: string;
+  sessionId: string;
+  /** 说话的角色；`digest` 表示模型主动记下的一条结论。 */
+  role: 'user' | 'assistant' | 'system' | 'digest';
+  text: string;
+  /** 写入时间戳（ms）。 */
+  t: number;
+}
+
 /** 一条检索命中。 */
 export interface RetrievalHit {
   chunkId: string;
@@ -148,6 +166,8 @@ export interface RetrievalHit {
   text: string;
   /** BM25 得分，已归一化到 0..1 供前端画大小。 */
   score: number;
+  /** 命中来自哪个通道：世界知识库，还是本会话的记忆片段。 */
+  channel: 'knowledge' | 'memory';
 }
 
 /** `pss_retrieve` 工具 / `POST /api/pss/retrieve` 的返回。 */

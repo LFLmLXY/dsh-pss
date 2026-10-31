@@ -246,6 +246,34 @@ await test('探针画出的图结构自洽（节点类别 / 连线端点 / 版�
   assert.ok(graph.version > 0, '版本号没增长');
 });
 
+await test('会话记忆可被检索（双通道）', async () => {
+  // ingest 写进去的原话必须能被 retrieve 召回，否则"记住对话"就是空话
+  const result = await manager.retrieve('smoke', '磁盘只存状态是什么意思');
+  const memoryHits = result.hits.filter((hit) => hit.channel === 'memory');
+  assert.ok(memoryHits.length > 0, '没召回任何会话记忆片段');
+  assert.ok(memoryHits.every((hit) => hit.source.startsWith('memory:')), '记忆片段来源标记不对');
+  assert.ok(result.hits.every((hit) => hit.channel === 'knowledge' || hit.channel === 'memory'));
+  assert.ok(result.contextPack.includes('[记忆]'), '上下文包没标出记忆通道');
+});
+
+await test('remember 写入的结论持久化并立刻可召回', async () => {
+  const before = await manager.memoryCount('smoke');
+  const written = await manager.remember('smoke', '决定：脑图放弃 cose 力导向，改用分区螺旋 preset 布局，理由是力导向会把五类节点混成一个球。');
+  assert.ok(written.chunks >= 1, `本次没写入片段：${written.chunks}`);
+  const after = await manager.memoryCount('smoke');
+  assert.ok(after > before, `记忆片段数没增长（${before} → ${after}）`);
+  assert.ok(written.stateVersion > 0);
+  const path = join(workDir, 'pss', 'sessions', 'smoke.memory.json');
+  assert.ok(existsSync(path), '记忆索引没落盘');
+  const saved = JSON.parse(await readFile(path, 'utf8'));
+  assert.ok(saved.chunks.some((chunk) => chunk.role === 'digest'), '没有 digest 片段');
+  const result = await manager.retrieve('smoke', '为什么不用 cose 力导向');
+  assert.ok(
+    result.hits.some((hit) => hit.channel === 'memory' && hit.text.includes('分区螺旋')),
+    '写入的结论召回失败'
+  );
+});
+
 await test('compile 落盘状态并递增编译计数', async () => {
   const result = await manager.compile('smoke', [
     { role: 'user', content: '可视化探针记录什么？' },
@@ -344,15 +372,23 @@ await test('Config 缺省值可被 schemastery 校验并通过', () => {
   assert.equal(config.compileOnDispose, true);
 });
 
-await test('apply() 注册 pss_retrieve 工具', () => {
+await test('apply() 注册 pss_retrieve 与 pss_remember 两个工具', () => {
   plugin.apply(ctx, config);
-  assert.equal(toolList.length, 1, `注册了 ${toolList.length} 个工具`);
-  const tool = toolList[0];
-  assert.equal(tool.name, 'pss_retrieve');
+  const names = toolList.map((tool) => tool.name).sort();
+  assert.deepEqual(names, ['pss_remember', 'pss_retrieve'], `注册的工具不对：${names.join(', ')}`);
+
+  const tool = toolList.find((item) => item.name === 'pss_retrieve');
+  assert.ok(tool, '缺少 pss_retrieve');
   assert.ok(tool.description.length > 20, '工具描述太短，模型不会选它');
   assert.ok(tool.parameters.properties?.query, '缺少 query 参数');
   assert.ok(tool.parameters.required?.includes('query'), 'query 应该是必填');
   assert.ok(tool.output?.schema?.properties?.contextPack, '输出 schema 缺少 contextPack');
+  assert.ok(tool.output.schema.properties.hits.items.properties.channel, 'hits 缺 channel 字段');
+
+  const remember = toolList.find((item) => item.name === 'pss_remember');
+  assert.ok(remember, '缺少 pss_remember');
+  assert.ok(remember.parameters.properties?.text, 'pss_remember 缺少 text 参数');
+  assert.ok(remember.output?.schema?.properties?.chunks, 'pss_remember 输出缺少 chunks');
 });
 
 await test('Dashboard 服务随插件启动并可访问', async () => {

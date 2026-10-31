@@ -101,11 +101,22 @@ export const Config: z<Config> = z.object({
 /* 事件与内容的防御性解析                                                       */
 /* -------------------------------------------------------------------------- */
 
-/** 从模型消息的 `content` 里抽出纯文本（兼容字符串与 content block 数组）。 */
-function extractText(content: unknown): string {
+/**
+ * 从模型消息的 `content` 里抽出纯文本（兼容字符串与 content block 数组）。
+ *
+ * `content` 里除了可见的 `text` 块，还有 `reasoning` 块 —— 那才是"决定了什么、为什么"。
+ * 只吸收可见文本的话，PSS 会变成一本流水账：记得我问了什么、答了什么，
+ * 但我推理里的结论一条都没进去，检索时自然什么都召不回来。
+ *
+ * @param content - 消息内容（字符串或 content block 数组）。
+ * @param includeReasoning - 是否一并吸收 `reasoning` 块（assistant 消息用 true）。
+ * @param reasoningLimit - reasoning 截断长度。
+ */
+function extractText(content: unknown, includeReasoning = false, reasoningLimit = 1500): string {
   if (typeof content === 'string') return content;
   if (!Array.isArray(content)) return '';
   const parts: string[] = [];
+  let reasoning = '';
   for (const block of content) {
     if (typeof block === 'string') {
       parts.push(block);
@@ -114,8 +125,16 @@ function extractText(content: unknown): string {
     if (typeof block !== 'object' || block === null) continue;
     const record = block as Record<string, unknown>;
     if (record.type === 'text' && typeof record.text === 'string') parts.push(record.text);
+    else if (includeReasoning && record.type === 'reasoning' && typeof record.text === 'string') {
+      reasoning += record.text;
+    }
   }
-  return parts.join('\n');
+  // reasoning 是"决定了什么、为什么"，经常极长：截断后再拼，避免把关键词表冲成一片虚词
+  if (reasoning.length > 0) {
+    const clipped = reasoning.length > reasoningLimit ? `${reasoning.slice(0, reasoningLimit)}…` : reasoning;
+    parts.push(`[思考] ${clipped}`);
+  }
+  return parts.join('\n')
 }
 
 /** 宽松的会话事件视图：只声明我们真正会读的字段。 */
@@ -142,7 +161,7 @@ function historyOf(session: LooseSession): { role: string; content: string }[] {
       const content = extractText(event.data?.content).trim();
       if (content.length > 0) history.push({ role: 'user', content });
     } else if (event.type === 'assistant/message') {
-      const content = extractText(event.data?.message?.content).trim();
+      const content = extractText(event.data?.message?.content, true).trim();
       if (content.length > 0) history.push({ role: 'assistant', content });
     }
   }
@@ -229,7 +248,13 @@ export function apply(ctx: Context, config: Config): void {
                   chunkId: { type: 'string', required: true },
                   source: { type: 'string', required: true },
                   text: { type: 'string', required: true },
-                  score: { type: 'number', required: true }
+                  score: { type: 'number', required: true },
+                  channel: {
+                    type: 'string',
+                    required: true,
+                    enum: ['knowledge', 'memory'],
+                    description: 'Where the hit came from: the knowledge base, or the session memory index.'
+                  }
                 }
               }
             },
@@ -259,13 +284,59 @@ export function apply(ctx: Context, config: Config): void {
             chunkId: hit.chunkId,
             source: hit.source,
             text: hit.text,
-            score: hit.score
+            score: hit.score,
+            channel: hit.channel
           })),
           contextPack: result.contextPack,
           latencyMs: result.latencyMs,
           intentSource: result.intentSource,
           stateVersion: result.stateVersion
         };
+      }
+    })
+  );
+
+  /* --- 工具：pss_remember ------------------------------------------------- */
+  // retrieve 是"读"，remember 是"写"。没有写入口，PSS 只能记住聊天原话，
+  // 记不住"我们定了什么方案、为什么这么选" —— 那恰恰是最该被记住的部分。
+  ctx.tools.register(
+    defineTool({
+      name: 'pss_remember',
+      description:
+        'Write a durable conclusion into the Parametric Session State of this session. Use it when a decision, constraint, finding or plan is settled and should survive context compression: one or two dense sentences, not a transcript. Later pss_retrieve calls can recall it.',
+      parameters: {
+        text: {
+          type: 'string',
+          required: true,
+          description: 'The conclusion to keep: decision + reason, or a constraint that must not be forgotten.'
+        },
+        sessionId: {
+          type: 'string',
+          description: 'Session to write into. Defaults to the calling session.'
+        }
+      },
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            sessionId: { type: 'string', required: true },
+            chunks: { type: 'number', required: true },
+            stateVersion: { type: 'number', required: true }
+          }
+        },
+        render: (_args, value) => [
+          {
+            type: 'text',
+            text: `[PSS] 已写入会话记忆：${value.chunks} 个片段（state v${value.stateVersion}）`
+          }
+        ]
+      },
+      async execute(args, exec) {
+        const callingSession = (exec as unknown as { agent?: { session?: LooseSession } }).agent?.session?.id;
+        const sessionId = args.sessionId?.trim() || callingSession || manager.newSessionId();
+        const result = await manager.remember(sessionId, args.text);
+        return { sessionId, chunks: result.chunks, stateVersion: result.stateVersion };
       }
     })
   );
@@ -311,7 +382,8 @@ export function apply(ctx: Context, config: Config): void {
             const text = extractText(looseEvent.data?.content).trim();
             if (text.length > 0 && text.length < 20000) void manager.ingest(sessionId, 'user', text);
           } else if (looseEvent.type === 'assistant/message') {
-            const text = extractText(looseEvent.data?.message?.content).trim();
+            // assistant 带上 reasoning：结论和理由都在里面
+            const text = extractText(looseEvent.data?.message?.content, true).trim();
             if (text.length > 0 && text.length < 20000) void manager.ingest(sessionId, 'assistant', text);
           }
         } catch (error) {

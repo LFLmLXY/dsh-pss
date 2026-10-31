@@ -7,8 +7,8 @@
 
 `O(1) 恒定存储` · `参数化意图` · `实时脑图探针` · `离线 LoRA 训练`
 
-[![status](https://img.shields.io/badge/status-v0.2%20%C2%B7%20working-00e5ff)](#路线图)
-[![tests](https://img.shields.io/badge/smoke-32%20passed-3ddc84)](#自检)
+[![status](https://img.shields.io/badge/status-v0.3%20%C2%B7%20working-00e5ff)](#路线图)
+[![tests](https://img.shields.io/badge/smoke-34%20passed-3ddc84)](#自检)
 [![runtime](https://img.shields.io/badge/node-%E2%89%A5%2022-4d7cff)](package.json)
 [![deps](https://img.shields.io/badge/runtime%20deps-1-ffc857)](package.json)
 [![license](https://img.shields.io/badge/license-MIT-a06bff)](LICENSE)
@@ -86,6 +86,13 @@ BM25 捞不到，向量检索靠不住。PSS 的做法是让**这组会话专属
 
 这层改写由 adapter 完成，所以它天生带着「这个用户、这个会话」的上下文偏差 ——
 同一个问题，在不同会话里会扩成不同的检索词。这是特性，不是 bug。
+
+### 2.5 记住结论，而不只是记住原话
+
+`pss_remember` 让模型把「定了什么、为什么这么定」写成一条 digest，
+和会话原话一起进 BM25 索引，检索时与随包知识**同台排序、分别标注**（`[记忆]` / `[知识]`）。
+上下文被压缩掉之后，这些结论仍然召得回来 —— 这是 PSS 省 token 的实质：
+用一次几百 token 的检索，换掉重读几万 token 的历史。
 
 ### 3. 极客级可视化 —— 能看见 AI 在想什么
 
@@ -232,7 +239,9 @@ Dashboard 与插件共用同一个内置 HTTP 服务（默认只监听 `127.0.0.
 | GET | `/api/pss/sessions` | 会话列表与各自状态摘要 |
 | GET | `/api/pss/knowledge` | 知识库片段 |
 | POST | `/api/pss/ingest` | `{sessionId?, role, text}` 吸收一句话 |
-| POST | `/api/pss/retrieve` | `{sessionId?, query}` 跑一次完整检索，返回 context pack |
+| GET | `/api/pss/memory?sessionId=` | 该会话的记忆片段数 |
+| POST | `/api/pss/retrieve` | `{sessionId?, query}` 跑一次双通道检索（知识库 + 会话记忆） |
+| POST | `/api/pss/remember` | `{sessionId?, text}` 往会话记忆写一条结论 |
 | POST | `/api/pss/compile` | `{sessionId, history?}` 触发编译（有 trainerUrl 时真发训练） |
 | POST | `/api/pss/demo` | `{reset?}` 一键灌演示语料 |
 | POST | `/api/pss/reset` | 清空内存图（不动落盘状态） |
@@ -246,9 +255,12 @@ curl -s -X POST localhost:8964/api/pss/retrieve \
 
 ---
 
-## 模型工具 `pss_retrieve`
+## 模型工具
 
-插件注册给模型的工具，模型在自己觉得「可能需要长期记忆」时调用：
+插件注册两个工具：一个读（检索），一个写（落结论）。**只有读没有写，PSS 只能记住聊天原话，
+记不住"我们定了什么、为什么这么定" —— 而那恰恰是最该被记住的部分。**
+
+### `pss_retrieve` —— 读
 
 ```jsonc
 // 参数
@@ -258,15 +270,50 @@ curl -s -X POST localhost:8964/api/pss/retrieve \
 {
   "sessionId": "…",
   "query": "…",
-  "intentQuery": "PSS 恒定存储 状态大小 质心 EMA",
-  "keywords": ["PSS", "恒定存储", "…"],
-  "hits": [{ "chunkId": "seed:pss-core", "source": "seed/pss-core", "score": 12.4, "text": "…" }],
-  "contextPack": "【PSS 记忆 · 3 段】\n…",
+  "intentQuery": "为何 放弃 cose 力导向 分区螺旋 preset 布局",
+  "keywords": ["布局", "力导向", "…"],
+  "hits": [
+    { "chunkId": "memory:sess42#3", "source": "memory:digest", "score": 1.0, "channel": "memory",
+      "text": "结论：脑图放弃 cose，改用分区螺旋 preset，因为力导向会把五类节点混成球" },
+    { "chunkId": "seed:pss-core",   "source": "seed/pss-core",   "score": 0.53, "channel": "knowledge",
+      "text": "…" }
+  ],
+  "contextPack": "[PSS] session=… v12
+
+--- 1. [记忆] memory:digest (score 1) ---
+…",
   "latencyMs": 1,
   "intentSource": "local",
   "stateVersion": 12
 }
 ```
+
+`hits[].channel` 标出这条命中来自哪一侧，`contextPack` 里也写成 `[记忆]` / `[知识]`，
+模型一眼能分清"这是我们之前定的"和"这是随包语料"。
+
+### `pss_remember` —— 写
+
+```jsonc
+// 参数：一两句致密结论，不要贴聊天记录
+{ "text": "决定：检索走双通道，记忆命中 score 乘 1.12，理由是会话原话关键词密度更高。",
+  "sessionId": "可选" }
+
+// 返回
+{ "sessionId": "…", "chunks": 1, "stateVersion": 13 }
+```
+
+写进去的内容会：① 落成 `digest` 记忆片段并立刻可被 `pss_retrieve` 召回；
+② 折进参数状态（关键词表 + 质心），让下一轮意图改写跟着变；③ 在脑图上长出一颗紫色 `system` 节点。
+
+### 检索是双通道的
+
+| 通道 | 索引对象 | 来源标记 | 说明 |
+| --- | --- | --- | --- |
+| `knowledge` | 随包语料 + `knowledge/` 目录 | `seed/*`、`<file>#n` | 静态知识，BM25 |
+| `memory` | 本会话所有 user / assistant / digest 片段 | `memory:<role>` | 对话原话与结论，BM25，score ×1.12 |
+
+两路命中合并后统一排序取前 `topK`。所以"我们上次怎么定的"这类问题，
+现在能真的从记忆里捞回来，而不只是从随包文档里捞。
 
 ---
 
@@ -298,7 +345,7 @@ curl -s -X POST localhost:8964/api/pss/retrieve \
 ```bash
 npm run typecheck    # tsc --noEmit
 npm run build        # 产出 dist/
-npm run smoke        # 32 项：单元 + 插件契约 + HTTP e2e
+npm run smoke        # 34 项：单元 + 插件契约 + HTTP e2e
 ```
 
 `tool/smoke.mjs` 不只是单测，它用一个 mock `ctx` **真的调了一遍 `apply()`**：
@@ -318,6 +365,8 @@ npm run smoke        # 32 项：单元 + 插件契约 + HTTP e2e
 - [x] 星图 Dashboard（增量拉取 + 分区螺旋布局 + HUD + 事件流 + 类别过滤 + 搜索定位）
 - [x] FastAPI 训练端（真实 peft 训练 + 缺栈时 dry-run）
 - [x] `pss_retrieve` 工具 + DSH bundle 补丁
+- [x] `pss_remember` 写入口 + 会话记忆索引（双通道检索）
+- [x] assistant `reasoning` 块一并吸收（结论与理由都进状态）
 - [ ] 真机验证：接上 GPU 跑一轮 `Qwen2.5-0.5B` + LoRA，对比「有记忆 / 无记忆」的检索命中率
 - [ ] 多会话共享 adapter（同一用户跨会话迁移质心）
 - [ ] Dashboard 时间轴回放（拖一条时间线看记忆是怎么长出来的）
@@ -340,6 +389,12 @@ npm run smoke        # 32 项：单元 + 插件契约 + HTTP e2e
 5. 训练端默认 base model 是 `Qwen/Qwen2.5-0.5B-Instruct`（够小、能单卡跑），换成别的只要改 `PSS_BASE_MODEL`。
 
 ---
+
+- **记忆索引是本会话粒度的**：`.memory.json` 与状态文件同目录、按会话隔离，
+  跨会话召回目前不做（要做就是换一个全局索引 + session 过滤，接口不用改）。
+- **ACP 压缩摘要不会被自动吸收**：`billion-context` 那类压缩发生在代理层改请求体，
+  不写 `session/event`，插件看不到。所以"压缩摘要进 PSS"要靠模型主动调 `pss_remember`，
+  或者你自己把摘要 POST 到 `/api/pss/remember`。
 
 ## 贡献
 

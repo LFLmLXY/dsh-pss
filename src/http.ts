@@ -12,8 +12,10 @@
  *   GET  /api/pss/events?after=ID     → 事件环形缓冲
  *   GET  /api/pss/sessions           → 已加载的会话状态列表
  *   GET  /api/pss/knowledge          → 知识库片段
+ *   GET  /api/pss/memory?sessionId=   → 该会话的记忆片段数量
  *   POST /api/pss/ingest             → 灌一段对话进状态
- *   POST /api/pss/retrieve           → 跑一次检索
+ *   POST /api/pss/retrieve           → 跑一次检索（知识库 + 会话记忆双通道）
+ *   POST /api/pss/remember           → 往会话记忆里写一条结论
  *   POST /api/pss/compile            → 编译会话（可选触发 LoRA 训练）
  *   POST /api/pss/demo               → 灌演示语料
  *   POST /api/pss/reset              → 清空图
@@ -256,6 +258,26 @@ export class DashboardServer {
 
     if (method === 'GET' && path === '/api/pss/knowledge') {
       json(res, 200, { chunks: manager.knowledgeChunks() });
+      return;
+    }
+
+    if (method === 'GET' && path === '/api/pss/memory') {
+      const sessionId = str(query, 'sessionId') ?? 'http';
+      const chunks = await manager.memoryCount(sessionId);
+      json(res, 200, { sessionId, chunks });
+      return;
+    }
+
+    if (method === 'POST' && path === '/api/pss/remember') {
+      const body = await readJson(req);
+      const sessionId = str(body, 'sessionId') ?? str(query, 'sessionId') ?? 'http';
+      const text = str(body, 'text');
+      if (!text) {
+        json(res, 400, { error: 'text is required' });
+        return;
+      }
+      const result = await manager.remember(sessionId, text);
+      json(res, 200, { sessionId, ...result });
       return;
     }
 
