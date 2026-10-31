@@ -1,0 +1,27 @@
+# 依赖与构建产物
+node_modules/
+dist/
+*.tsbuildinfo
+
+# 本地运行数据（会话参数状态 / LoRA 权重 / 演示语料缓存）
+.pss/
+.pss-demo/
+loras/
+data/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 编辑器 / 系统
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
+
+# 截图产物（演示图请手动放到 docs/ 再提交）
+shot*.png
+*.tmp

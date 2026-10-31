@@ -1,0 +1,1108 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PSS · Memory Brain — dsh-pss</title>
+<meta name="description" content="dsh-pss 实时可视化探针：把参数化会话状态的记忆流转画成一张会呼吸的脑图。" />
+<style>
+  /* ============================================================
+     主题变量：一处改色，全站生效
+     ============================================================ */
+  :root {
+    --bg: #0a0b10;
+    --bg-2: #0d0f16;
+    --panel: rgba(14, 17, 26, 0.78);
+    --panel-line: rgba(120, 160, 255, 0.14);
+    --text: #cfd8ec;
+    --text-dim: #6b7794;
+    --text-hi: #eaf1ff;
+    --user: #ff4d6d;
+    --intent: #00e5ff;
+    --knowledge: #ffc857;
+    --answer: #4d7cff;
+    --system: #a06bff;
+    --ok: #35f0a0;
+    --warn: #ffb648;
+    --err: #ff5d5d;
+    --mono: "JetBrains Mono", "Cascadia Code", "SF Mono", "Consolas", "Menlo", monospace;
+    --sans: "Inter", "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ============================================================
+     背景：深空 + 星尘 + 极光，全部用 CSS，零图片
+     ============================================================ */
+  .sky {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background:
+      radial-gradient(1200px 700px at 18% 12%, rgba(0, 229, 255, 0.10), transparent 60%),
+      radial-gradient(900px 600px at 82% 78%, rgba(160, 107, 255, 0.12), transparent 62%),
+      radial-gradient(700px 500px at 60% 20%, rgba(77, 124, 255, 0.08), transparent 65%),
+      linear-gradient(180deg, #0a0b10 0%, #080a0f 55%, #05060a 100%);
+    pointer-events: none;
+  }
+  .sky::before {
+    /* 星尘：两层不同密度的点阵，靠 animation 缓慢漂移 */
+    content: "";
+    position: absolute;
+    inset: -20%;
+    background-image:
+      radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.55), transparent 100%),
+      radial-gradient(1px 1px at 70% 60%, rgba(180,220,255,0.45), transparent 100%),
+      radial-gradient(1.5px 1.5px at 40% 80%, rgba(255,255,255,0.35), transparent 100%),
+      radial-gradient(1px 1px at 85% 15%, rgba(120,200,255,0.5), transparent 100%),
+      radial-gradient(1px 1px at 10% 70%, rgba(255,255,255,0.3), transparent 100%);
+    background-size: 260px 260px, 420px 420px, 380px 380px, 520px 520px, 300px 300px;
+    opacity: 0.5;
+    animation: drift 120s linear infinite;
+  }
+  .sky::after {
+    /* 扫描线，极客味的关键细节 */
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.022) 0px,
+      rgba(255, 255, 255, 0.022) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    mix-blend-mode: overlay;
+  }
+  @keyframes drift {
+    from { transform: translate3d(0, 0, 0); }
+    to   { transform: translate3d(-120px, -90px, 0); }
+  }
+
+  #cy {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    background: transparent;
+  }
+
+  /* ============================================================
+     HUD 通用面板
+     ============================================================ */
+  .panel {
+    position: fixed;
+    z-index: 10;
+    background: var(--panel);
+    border: 1px solid var(--panel-line);
+    border-radius: 12px;
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    box-shadow:
+      0 18px 48px rgba(0, 0, 0, 0.55),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  /* 角标线：只有四角有细边，像仪表盘 */
+  .panel::before, .panel::after {
+    content: "";
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border: 1px solid rgba(0, 229, 255, 0.45);
+    pointer-events: none;
+  }
+  .panel::before { top: -1px; left: -1px; border-right: 0; border-bottom: 0; border-radius: 12px 0 0 0; }
+  .panel::after  { bottom: -1px; right: -1px; border-left: 0; border-top: 0; border-radius: 0 0 12px 0; }
+
+  /* ---------- 左上：主 HUD ---------- */
+  #hud {
+    top: 18px;
+    left: 18px;
+    width: 268px;
+    padding: 14px 16px 12px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-bottom: 12px;
+  }
+  .brand .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--system);
+    box-shadow: 0 0 12px var(--system), 0 0 3px #fff inset;
+    animation: breathe 2.6s ease-in-out infinite;
+  }
+  .brand h1 {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    color: var(--text-hi);
+    text-transform: uppercase;
+  }
+  .brand .tag {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+    border: 1px solid var(--panel-line);
+    border-radius: 999px;
+    padding: 2px 7px;
+  }
+  @keyframes breathe {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: 0.45; transform: scale(0.82); }
+  }
+
+  .metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .metric {
+    background: rgba(255, 255, 255, 0.028);
+    border: 1px solid rgba(255, 255, 255, 0.055);
+    border-radius: 9px;
+    padding: 8px 10px;
+  }
+  .metric .k {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+  .metric .v {
+    font-family: var(--mono);
+    font-size: 19px;
+    line-height: 1.25;
+    color: var(--text-hi);
+    font-variant-numeric: tabular-nums;
+  }
+  .metric.wide { grid-column: span 2; }
+  .metric.wide .v { font-size: 13px; letter-spacing: 0.04em; }
+
+  /* 活跃度火花线 */
+  .sparks {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 26px;
+    margin-top: 10px;
+  }
+  .sparks i {
+    flex: 1;
+    min-height: 1px;
+    background: linear-gradient(180deg, var(--intent), rgba(0, 229, 255, 0.12));
+    border-radius: 1px;
+    transition: height 260ms ease;
+  }
+
+  /* ---------- 左中：图例 / 过滤器 ---------- */
+  #legend {
+    top: 296px;
+    left: 18px;
+    width: 268px;
+    padding: 11px 14px 12px;
+  }
+  .cap {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 9px;
+  }
+  .legend-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 5px 6px;
+    border-radius: 7px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 140ms ease, opacity 140ms ease;
+  }
+  .legend-row:hover { background: rgba(255, 255, 255, 0.045); }
+  .legend-row.off { opacity: 0.34; }
+  .legend-row .chip {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex: none;
+  }
+  .legend-row .nm {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text);
+  }
+  .legend-row .ct {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------- 右上：事件流 ---------- */
+  #feed {
+    top: 18px;
+    right: 18px;
+    width: 330px;
+    max-height: 58vh;
+    padding: 12px 14px 10px;
+    display: flex;
+    flex-direction: column;
+  }
+  #feed .head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  #feed .head .cap { margin: 0; }
+  #feed .stream {
+    overflow: hidden;
+    flex: 1;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    line-height: 1.55;
+  }
+  .ev {
+    display: grid;
+    grid-template-columns: 46px 58px 1fr;
+    gap: 7px;
+    padding: 2px 0;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.045);
+    animation: slide-in 240ms ease both;
+  }
+  .ev .ts { color: var(--text-dim); }
+  .ev .kd { letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
+  .ev .ms { color: var(--text); word-break: break-all; }
+  .ev[data-k="retrieve"] .kd { color: var(--intent); }
+  .ev[data-k="ingest"]   .kd { color: var(--user); }
+  .ev[data-k="compile"]  .kd { color: var(--answer); }
+  .ev[data-k="session"]  .kd { color: var(--system); }
+  .ev[data-k="system"]   .kd { color: var(--warn); }
+  .ev[data-k="error"]    .kd { color: var(--err); }
+  @keyframes slide-in {
+    from { opacity: 0; transform: translateY(-5px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /* ---------- 右下：控制台 ---------- */
+  #controls {
+    bottom: 18px;
+    right: 18px;
+    padding: 10px 12px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  button {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.045);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 7px;
+    padding: 6px 11px;
+    cursor: pointer;
+    transition: all 140ms ease;
+  }
+  button:hover {
+    color: var(--text-hi);
+    border-color: rgba(0, 229, 255, 0.5);
+    box-shadow: 0 0 14px rgba(0, 229, 255, 0.22);
+  }
+  button:active { transform: translateY(1px); }
+  button.danger:hover {
+    border-color: rgba(255, 93, 93, 0.55);
+    box-shadow: 0 0 14px rgba(255, 93, 93, 0.22);
+  }
+  #status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+    margin-left: auto;
+    padding-left: 4px;
+  }
+  #status-pill i {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--warn);
+    box-shadow: 0 0 9px currentColor;
+  }
+  #status-pill.live i { background: var(--ok); }
+  #status-pill.dead i { background: var(--err); }
+
+  /* ---------- 左下：节点详情 ---------- */
+  #inspector {
+    bottom: 18px;
+    left: 18px;
+    width: 300px;
+    padding: 12px 14px;
+    display: none;
+  }
+  #inspector.on { display: block; }
+  #inspector .row {
+    display: grid;
+    grid-template-columns: 62px 1fr;
+    gap: 8px;
+    font-size: 11px;
+    line-height: 1.5;
+  }
+  #inspector .row .k {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    padding-top: 2px;
+  }
+  #inspector .row .v { color: var(--text-hi); word-break: break-word; }
+  #inspector .txt {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--text);
+    max-height: 140px;
+    overflow: auto;
+    white-space: pre-wrap;
+  }
+
+  /* 离线遮罩 */
+  #offline {
+    position: fixed;
+    z-index: 9;
+    inset: 0;
+    display: none;
+    place-items: center;
+    pointer-events: none;
+  }
+  #offline.on { display: grid; }
+  #offline div {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: var(--err);
+    text-transform: uppercase;
+    text-shadow: 0 0 18px rgba(255, 93, 93, 0.5);
+  }
+
+  @media (max-width: 860px) {
+    #feed, #legend { display: none; }
+    #hud { width: calc(100vw - 36px); }
+  }
+</style>
+</head>
+<body>
+<div class="sky"></div>
+<div id="cy"></div>
+<div id="offline"><div>◍ link lost — retrying</div></div>
+
+<!-- ============ 主 HUD ============ -->
+<section class="panel" id="hud">
+  <div class="brand">
+    <span class="dot"></span>
+    <h1>PSS · Brain</h1>
+    <span class="tag">v<span id="ver">0</span></span>
+  </div>
+  <div class="metrics">
+    <div class="metric">
+      <div class="k">Nodes</div>
+      <div class="v" id="m-nodes">0</div>
+    </div>
+    <div class="metric">
+      <div class="k">Links</div>
+      <div class="v" id="m-links">0</div>
+    </div>
+    <div class="metric">
+      <div class="k">Sessions</div>
+      <div class="v" id="m-sessions">0</div>
+    </div>
+    <div class="metric">
+      <div class="k">Retrievals</div>
+      <div class="v" id="m-retrievals">0</div>
+    </div>
+    <div class="metric wide">
+      <div class="k">System</div>
+      <div class="v" id="m-status">booting…</div>
+    </div>
+  </div>
+  <div class="sparks" id="sparks"></div>
+</section>
+
+<!-- ============ 图例 / 过滤 ============ -->
+<section class="panel" id="legend">
+  <div class="cap">Memory classes</div>
+  <div id="legend-rows"></div>
+</section>
+
+<!-- ============ 事件流 ============ -->
+<section class="panel" id="feed">
+  <div class="head">
+    <span class="cap">Probe stream</span>
+  </div>
+  <div class="stream" id="stream"></div>
+</section>
+
+<!-- ============ 控制台 ============ -->
+<section class="panel" id="controls">
+  <button id="btn-demo">▶ demo</button>
+  <button id="btn-fit">⤢ fit</button>
+  <button id="btn-pause">⏸ pause</button>
+  <button id="btn-reset" class="danger">⌫ reset</button>
+  <span id="status-pill"><i></i><span id="status-text">connecting</span></span>
+</section>
+
+<!-- ============ 节点详情 ============ -->
+<section class="panel" id="inspector">
+  <div class="cap" style="margin-bottom:8px">Node inspector</div>
+  <div class="row"><div class="k">Kind</div><div class="v" id="i-kind">—</div></div>
+  <div class="row"><div class="k">Id</div><div class="v" id="i-id">—</div></div>
+  <div class="row"><div class="k">Weight</div><div class="v" id="i-weight">—</div></div>
+  <div class="row"><div class="k">At</div><div class="v" id="i-time">—</div></div>
+  <div class="txt" id="i-detail"></div>
+</section>
+
+<script src="vendor/cytoscape.min.js"></script>
+<script>
+/* ============================================================================
+ * dsh-pss · 可视化探针前端
+ *
+ * 纯 HTML/CSS/JS + Cytoscape.js，没有构建步骤，直接喂给浏览器就能跑。
+ * 数据源：同源 REST（GET /api/pss/graph、/api/pss/events）。
+ *
+ * 设计取舍：
+ *   - 轮询而不是 WebSocket：服务端只是一个内存快照，3 秒拉一次足够"实时"，
+ *     而且断线重连、多标签页共存都是免费的。
+ *   - 增量合并而不是整图重建：新节点用 cy.add() 追加，布局 randomize:false
+ *     用老位置当种子，所以图是"长出来"的，不是"跳一下"。
+ * ========================================================================== */
+(function () {
+  'use strict';
+
+  /* ---------------------------------------------------------------- 常量 */
+
+  const POLL_MS = 3000;          // 轮询间隔
+  const POLL_FAST_MS = 1200;     // 有新事件后的加速轮询
+  const SPARK_BUCKETS = 34;      // HUD 火花线柱数
+  const MAX_FEED = 40;           // 事件流保留条数
+
+  /** 五种记忆节点的视觉定义：颜色 / 形状 / 尺寸 / 中文名。 */
+  const KIND = {
+    user:      { color: '#ff4d6d', shape: 'ellipse', size: 40, label: '用户输入', glyph: '❯' },
+    intent:    { color: '#00e5ff', shape: 'diamond', size: 50, label: 'PSS 意图', glyph: '⟁' },
+    knowledge: { color: '#ffc857', shape: 'round-rectangle', size: 40, label: '知识片段', glyph: '▤' },
+    answer:    { color: '#4d7cff', shape: 'ellipse', size: 40, label: 'AI 回答', glyph: '✦' },
+    system:    { color: '#a06bff', shape: 'hexagon', size: 36, label: '系统事件', glyph: '⚙' }
+  };
+
+  /** 四种连线的颜色与线型。 */
+  const LINK = {
+    parametrize: { color: '#00e5ff', style: 'dashed' },
+    retrieve:    { color: '#ffc857', style: 'solid' },
+    compose:     { color: '#4d7cff', style: 'solid' },
+    compile:     { color: '#a06bff', style: 'dotted' }
+  };
+
+  const $ = (id) => document.getElementById(id);
+
+  /* ------------------------------------------------------- 状态 */
+
+  const state = {
+    version: -1,
+    paused: false,
+    online: false,
+    hidden: new Set(),        // 被关掉的类别
+    seenEvents: new Set(),    // 已渲染的事件 id
+    spark: new Array(SPARK_BUCKETS).fill(0),
+    lastCount: 0,             // 上一帧节点数（0 = 还没画过，需要 fit）
+    retry: 0
+  };
+
+  /* ------------------------------------------------------- 图形实例 */
+
+  const kindStyle = Object.entries(KIND).map(([kind, meta]) => ({
+    selector: 'node[k="' + kind + '"]',
+    style: {
+      'background-color': meta.color,
+      'background-opacity': 0.92,
+      shape: meta.shape,
+      label: 'data(label)',
+      color: '#dfe8ff',
+      'font-family': 'JetBrains Mono, Consolas, monospace',
+      'font-size': 10,
+      'font-weight': 500,
+      'text-wrap': 'wrap',
+      'text-max-width': 104,
+      'text-valign': 'bottom',
+      'text-margin-y': 7,
+      'text-outline-width': 3,
+      'text-outline-color': '#05060a',
+      'text-outline-opacity': 0.9,
+      'border-width': 1,
+      'border-color': 'rgba(255,255,255,0.35)',
+      'shadow-blur': 26,
+      'shadow-color': meta.color,
+      'shadow-opacity': 0.85,
+      'shadow-offset-x': 0,
+      'shadow-offset-y': 0,
+      'transition-property': 'background-color, border-width, shadow-opacity, opacity',
+      'transition-duration': 260
+    }
+  }));
+
+  const linkStyle = Object.entries(LINK).map(([kind, meta]) => ({
+    selector: 'edge[k="' + kind + '"]',
+    style: {
+      'curve-style': 'bezier',
+      'line-color': meta.color,
+      'line-opacity': 0.55,
+      'line-style': meta.style,
+      width: 1.3,
+      'target-arrow-shape': 'triangle',
+      'target-arrow-color': meta.color,
+      'arrow-scale': 0.62,
+      'shadow-blur': 10,
+      'shadow-color': meta.color,
+      'shadow-opacity': 0.5
+    }
+  }));
+
+  /** @type {any} 图形实例，等 cytoscape 就绪后在 boot() 里创建 */
+  let cy = null;
+
+  /** 建图：只在该渲染器确实加载成功之后调用。 */
+  function createGraph() {
+    return cytoscape({
+    container: $('cy'),
+    wheelSensitivity: 0.22,
+    boxSelectionEnabled: false,
+    autounselectify: false,
+    minZoom: 0.15,
+    maxZoom: 3.2,
+    pixelRatio: 'auto',
+    style: [
+      {
+        selector: 'node',
+        style: {
+          'font-family': 'JetBrains Mono, Consolas, monospace',
+          'overlay-opacity': 0,
+          // 尺寸用 mapper 而不是逐元素 override：力导向布局读的是 style 里的宽高，
+          // 用 override 会让它以为所有节点一样大，于是节点会叠在一起。
+          width: 'mapData(w, 0, 1, 30, 46)',
+          height: 'mapData(w, 0, 1, 30, 46)'
+        }
+      },
+      {
+        selector: 'edge',
+        style: {
+          'overlay-opacity': 0
+        }
+      },
+      {
+        selector: '.faded',
+        style: { opacity: 0.09 }
+      },
+      {
+        selector: '.hot',
+        style: {
+          'border-width': 3,
+          'border-color': '#ffffff',
+          'shadow-opacity': 1,
+          'shadow-blur': 44
+        }
+      },
+      {
+        selector: 'node:selected',
+        style: {
+          'border-width': 3,
+          'border-color': '#ffffff',
+          'background-opacity': 1,
+          'shadow-opacity': 1,
+          'shadow-blur': 46
+        }
+      },
+      {
+        selector: 'edge:selected',
+        style: { width: 2.4, 'line-opacity': 1 }
+      }
+    ].concat(kindStyle, linkStyle),
+    layout: layoutOptions(false, true)
+    });
+  }
+
+  /**
+   * cose 力导向参数。
+   * @param {boolean} fit - 是否在布局结束后把视图套住全图。
+   * @param {boolean} randomize - 是否随机初始坐标。
+   *   空图必须 true（否则所有节点从原点出发，cose 会退化成一条线）；
+   *   增量必须 false（用现有坐标当种子，图才是"生长"而不是"跳变"）。
+   */
+  function layoutOptions(fit, randomize) {
+    return {
+      name: 'cose',
+      animate: true,
+      animationDuration: 620,
+      animationEasing: 'ease-out',
+      // 空图必须随机撒点，否则所有节点从原点出发，力导向会退化成一条直线；
+      // 增量更新必须不随机，用现有坐标当种子，图才是"生长"而不是"跳变"。
+      randomize: randomize === true,
+      fit: fit,
+      padding: 110,
+      // 度数越高斥力越强，枢纽节点自己撑开一片空间
+      nodeRepulsion: function (node) {
+        return 16000 + Math.min(node.degree(false), 8) * 2400;
+      },
+      // 不同类型的关系给不同边长，因果链看起来才不挤
+      idealEdgeLength: function (edge) {
+        const kind = edge.data('k');
+        if (kind === 'compile') return 260;
+        if (kind === 'retrieve') return 215;
+        if (kind === 'parametrize') return 190;
+        return 175;
+      },
+      edgeElasticity: function (edge) {
+        return edge.data('k') === 'retrieve' ? 100 : 140;
+      },
+      gravity: 34,
+      numIter: 2500,
+      initialTemp: 220,
+      coolingFactor: 0.95,
+      minTemp: 0.5,
+      nodeOverlap: 44,
+      componentSpacing: 160,
+      nestingFactor: 1.15
+    };
+  }
+
+
+
+  /* ------------------------------------------------------- HUD 渲染 */
+
+  const sparksEl = $('sparks');
+  for (let i = 0; i < SPARK_BUCKETS; i++) sparksEl.appendChild(document.createElement('i'));
+
+  function renderSparks() {
+    const max = Math.max(1, ...state.spark);
+    const bars = sparksEl.children;
+    for (let i = 0; i < SPARK_BUCKETS; i++) {
+      const v = state.spark[i];
+      bars[i].style.height = (4 + (v / max) * 22).toFixed(1) + 'px';
+      bars[i].style.opacity = String(0.28 + (v / max) * 0.72);
+    }
+  }
+
+  function setStatus(kind, text) {
+    const pill = $('status-pill');
+    pill.classList.toggle('live', kind === 'live');
+    pill.classList.toggle('dead', kind === 'dead');
+    $('status-text').textContent = text;
+  }
+
+  function fmtUptime(ms) {
+    const s = Math.floor((ms || 0) / 1000);
+    const m = Math.floor(s / 60);
+    const h = Math.floor(m / 60);
+    if (h > 0) return h + 'h ' + (m % 60) + 'm';
+    if (m > 0) return m + 'm ' + (s % 60) + 's';
+    return s + 's';
+  }
+
+  function applyStats(stats) {
+    if (!stats) return;
+    $('m-nodes').textContent = stats.nodes ?? 0;
+    $('m-links').textContent = stats.links ?? 0;
+    $('m-sessions').textContent = stats.sessions ?? 0;
+    $('m-retrievals').textContent = stats.retrievals ?? 0;
+    $('m-status').textContent = 'up ' + fmtUptime(stats.uptimeMs) + ' · ' + (stats.compiles ?? 0) + ' compiled';
+    $('ver').textContent = String(state.version >= 0 ? state.version : 0);
+
+    // 图例计数
+    const byKind = stats.byKind || {};
+    for (const row of $('legend-rows').children) {
+      const kind = row.dataset.k;
+      row.querySelector('.ct').textContent = bay(byKind[kind]);
+    }
+  }
+
+  function bay(n) { return typeof n === 'number' ? String(n) : '0'; }
+
+  /* ------------------------------------------------------- 图例 */
+
+  function buildLegend() {
+    const host = $('legend-rows');
+    host.innerHTML = '';
+    for (const [kind, meta] of Object.entries(KIND)) {
+      const row = document.createElement('div');
+      row.className = 'legend-row';
+      row.dataset.k = kind;
+      row.innerHTML =
+        '<span class="chip" style="background:' + meta.color + ';box-shadow:0 0 10px ' + meta.color + '"></span>' +
+        '<span class="nm">' + meta.label + '</span>' +
+        '<span class="ct">0</span>';
+      row.addEventListener('click', () => {
+        if (state.hidden.has(kind)) state.hidden.delete(kind);
+        else state.hidden.add(kind);
+        row.classList.toggle('off', state.hidden.has(kind));
+        applyFilter();
+      });
+      host.appendChild(row);
+    }
+  }
+
+  function applyFilter() {
+    cy.batch(() => {
+      cy.nodes().forEach((node) => {
+        const hide = state.hidden.has(node.data('k'));
+        node.style('display', hide ? 'none' : 'element');
+      });
+    });
+  }
+
+  /* ------------------------------------------------------- 图数据合并 */
+
+  function nodeToElement(node) {
+    const meta = KIND[node.kind] || KIND.system;
+    const weight = typeof node.weight === 'number' ? node.weight : 1;
+    // 服务端给的 label 可能很长（它要兼顾终端输出）。图上按类别给不同长度：
+    // 语义锚点（用户提问 / PSS 意图）留全一点，知识片段和回答只留前缀，
+    // 这样密集图上不会出现一大片互相压住的文字。
+    const raw = node.label || node.id;
+    const limit = node.kind === 'user' ? 22 : node.kind === 'intent' ? 24 : 14;
+    const label = raw.length > limit ? raw.slice(0, limit - 1) + '…' : raw;
+    return {
+      group: 'nodes',
+      data: {
+        id: node.id,
+        label: label,
+        k: node.kind,
+        w: weight,
+        t: node.t,
+        detail: node.detail || ''
+      }
+    };
+  }
+
+  function linkToElement(link) {
+    return {
+      group: 'edges',
+      data: { id: link.id, source: link.source, target: link.target, k: link.kind }
+    };
+  }
+
+  /**
+   * 把服务端快照合并进图。
+   * @returns {number} 新增节点数
+   */
+  function mergeGraph(graph, forceFit) {
+    const incomingNodes = graph.nodes || [];
+    const incomingLinks = graph.links || [];
+
+    // 节点变少 = 服务端 reset 过，直接重建，别留幽灵节点
+    if (incomingNodes.length < cy.nodes().length) {
+      cy.elements().remove();
+    }
+
+    const snapshotNodes = new Set(incomingNodes.map((n) => n.id));
+
+    // 删掉服务端已经不存在的（比如环形缓冲裁剪掉的旧节点）
+    const staleNodes = cy.nodes().filter((n) => !snapshotNodes.has(n.id()));
+    if (staleNodes.length > 0) {
+      cy.remove(staleNodes.connectedEdges().union(staleNodes));
+    }
+
+    const wasEmpty = cy.nodes().length === 0;
+    const existingNodes = new Set(cy.nodes().map((n) => n.id()));
+    const fresh = [];
+    for (const node of incomingNodes) {
+      if (!existingNodes.has(node.id)) fresh.push(nodeToElement(node));
+    }
+
+    const existingEdges = new Set(cy.edges().map((e) => e.id()));
+    const freshEdges = [];
+    for (const link of incomingLinks) {
+      if (existingEdges.has(link.id)) continue;
+      // 端点必须存在，否则 cytoscape 会丢掉这条边
+      if (!existingNodes.has(link.source) && !fresh.some((n) => n.data.id === link.source)) continue;
+      if (!existingNodes.has(link.target) && !fresh.some((n) => n.data.id === link.target)) continue;
+      freshEdges.push(linkToElement(link));
+    }
+
+    if (fresh.length === 0 && freshEdges.length === 0) {
+      if (forceFit) fitAll(false);
+      applyFilter();
+      return 0;
+    }
+
+    cy.batch(() => {
+      cy.add(fresh);
+      cy.add(freshEdges);
+    });
+
+    // 新节点脉冲一下，视觉上"这条记忆刚写进来"
+    const pulsed = cy.nodes().filter((n) => fresh.some((f) => f.data.id === n.id()));
+    pulsed.addClass('hot');
+    setTimeout(() => pulsed.removeClass('hot'), 1400);
+
+    applyFilter();
+    relayout(wasEmpty || forceFit, wasEmpty);
+    return fresh.length;
+  }
+
+  let layoutTimer = 0;
+  function relayout(fit, randomize) {
+    // 布局是重活，短时间内多次合并只跑最后一次，避免抖动
+    clearTimeout(layoutTimer);
+    layoutTimer = setTimeout(() => {
+      if (cy.nodes().length === 0) return;
+      cy.layout(layoutOptions(fit === true, randomize === true)).run();
+    }, 90);
+  }
+
+  function fitAll(animate) {
+    if (cy.nodes().length === 0) return;
+    cy.animate({ fit: { eles: cy.elements(), padding: 80 } }, { duration: animate === false ? 0 : 480 });
+  }
+
+  /* ------------------------------------------------------- 事件流 */
+
+  function pushEvent(event) {
+    const stream = $('stream');
+    const row = document.createElement('div');
+    row.className = 'ev';
+    row.dataset.k = event.kind || 'system';
+    const time = new Date(event.t || Date.now());
+    const ts = String(time.getHours()).padStart(2, '0') + ':' +
+               String(time.getMinutes()).padStart(2, '0') + ':' +
+               String(time.getSeconds()).padStart(2, '0');
+    row.innerHTML =
+      '<span class="ts">' + ts + '</span>' +
+      '<span class="kd">' + String(event.kind || 'sys').slice(0, 5) + '</span>' +
+      '<span class="ms"></span>';
+    row.querySelector('.ms').textContent = event.message || '';
+    stream.prepend(row);
+    while (stream.children.length > MAX_FEED) stream.lastElementChild.remove();
+
+    // 火花线：最后一个桶 +1
+    state.spark.shift();
+    state.spark.push(1);
+    renderSparks();
+  }
+
+  /* ------------------------------------------------------- 网络 */
+
+  async function getJson(url, init) {
+    const res = await fetch(url, Object.assign({ headers: { accept: 'application/json' } }, init || {}));
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  }
+
+  async function pollGraph() {
+    if (state.paused) return;
+    try {
+      const url = '/api/pss/graph' + (state.version >= 0 ? '?since=' + state.version : '');
+      const payload = await getJson(url);
+
+      if (!state.online) {
+        state.online = true;
+        state.retry = 0;
+        setStatus('live', 'live');
+        $('offline').classList.remove('on');
+      }
+
+      if (!payload.unchanged) {
+        state.version = payload.version;
+        const added = mergeGraph(payload, state.version === 0 || state.lastCount === 0);
+        state.lastCount = (payload.nodes || []).length;
+        if (added > 0) schedulePoll(POLL_FAST_MS);
+      }
+      applyStats(payload.stats);
+    } catch (error) {
+      state.online = false;
+      state.retry++;
+      setStatus('dead', 'offline ×' + state.retry);
+      $('offline').classList.add('on');
+    }
+    schedulePoll(POLL_MS);
+  }
+
+  async function pollEvents() {
+    try {
+      const payload = await getJson('/api/pss/events');
+      const events = payload.events || [];
+      // 服务端事件带稳定 id，只渲染没见过的
+      for (const event of events) {
+        if (state.seenEvents.has(event.id)) continue;
+        state.seenEvents.add(event.id);
+        pushEvent(event);
+      }
+      if (state.seenEvents.size > 800) {
+        // 防止无限增长：只保留最近 400 个 id
+        const keep = new Set();
+        for (const event of events) keep.add(event.id);
+        state.seenEvents = keep;
+      }
+    } catch (error) {
+      // 事件流失败不影响主图
+    }
+  }
+
+  let pollTimer = 0;
+  function schedulePoll(delay) {
+    clearTimeout(pollTimer);
+    pollTimer = setTimeout(pollGraph, Math.max(600, delay));
+  }
+
+  /* ------------------------------------------------------- 交互 */
+
+  /** 高亮某个节点及其直接邻居，其余淡出。 */
+  function highlightNeighbours(node) {
+    cy.elements().addClass('faded');
+    node.closedNeighborhood().removeClass('faded');
+    node.removeClass('faded');
+  }
+
+  /** 取消高亮。 */
+  function clearHighlight() {
+    cy.elements().removeClass('faded');
+  }
+
+  /** 绑定交互：必须在 cy 创建之后调用。 */
+  function wireInteractions() {
+    cy.on('tap', 'node', (evt) => {
+      const node = evt.target;
+      const data = node.data();
+      $('inspector').classList.add('on');
+      $('i-kind').textContent = (KIND[data.k] ? KIND[data.k].label : data.k) + ' · ' + data.k;
+      $('i-id').textContent = data.id;
+      $('i-weight').textContent = String(data.w);
+      $('i-time').textContent = new Date(data.t || Date.now()).toLocaleString('zh-CN');
+      $('i-detail').textContent = data.detail || '(无附加信息)';
+      highlightNeighbours(node);
+    });
+
+    cy.on('tap', (evt) => {
+      if (evt.target === cy) {
+        $('inspector').classList.remove('on');
+        clearHighlight();
+      }
+    });
+
+    cy.on('mouseover', 'node', (evt) => highlightNeighbours(evt.target));
+    cy.on('mouseout', 'node', () => clearHighlight());
+
+    $('btn-fit').addEventListener('click', () => fitAll(true));
+
+    $('btn-pause').addEventListener('click', (event) => {
+      state.paused = !state.paused;
+      event.currentTarget.textContent = state.paused ? '▶ resume' : '⏸ pause';
+      if (!state.paused) pollGraph();
+    });
+
+    $('btn-demo').addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        await getJson('/api/pss/demo', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ reset: true })
+        });
+        state.version = -1;
+        state.seenEvents.clear();
+        $('stream').innerHTML = '';
+        pollGraph();
+        pollEvents();
+      } catch (error) {
+        setStatus('dead', 'demo failed');
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    $('btn-reset').addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        await getJson('/api/pss/reset', { method: 'POST' });
+        cy.elements().remove();
+        state.version = -1;
+        state.lastCount = 0;
+        state.spark = new Array(SPARK_BUCKETS).fill(0);
+        renderSparks();
+        $('stream').innerHTML = '';
+        state.seenEvents.clear();
+        pollGraph();
+      } catch (error) {
+        setStatus('dead', 'reset failed');
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    window.addEventListener('resize', () => cy.resize());
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) pollGraph();
+    });
+  }
+
+  /* ------------------------------------------------------- 启动 */
+
+  // cytoscape 优先用本地 vendor 副本；没打进来时退回 CDN
+  if (typeof cytoscape === 'undefined') {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/cytoscape@3.30.2/dist/cytoscape.min.js';
+    script.onload = boot;
+    script.onerror = () => {
+      $('m-status').textContent = 'cytoscape 未加载';
+      setStatus('dead', 'no renderer');
+    };
+    document.head.appendChild(script);
+  } else {
+    boot();
+  }
+
+  function boot() {
+    cy = createGraph();
+    wireInteractions();
+    buildLegend();
+    renderSparks();
+    setStatus('live', 'connecting');
+    pollGraph();
+    pollEvents();
+    // 事件流比主图轻，可以更勤快
+    setInterval(() => {
+      if (!state.paused) pollEvents();
+    }, 1800);
+  }
+})();
+</script>
+</body>
+</html>

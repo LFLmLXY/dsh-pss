@@ -1,0 +1,29 @@
+# dsh-pss bundle patch
+#
+# 这个文件是「bundle 补丁」：DSH 的插件管理器读 manifest 的 dsh.bundle.patch 字段，
+# 把下面这段 YAML 合进 profile 的 entry 列表，于是这个包一装上就自带一行插件配置。
+#
+# 字段说明（Cordis Loader 方言）：
+#   insert: 追加行；id 必须唯一，同名行以本层为准
+#   name:   插件包名或入口路径；相对路径以本补丁文件所在目录为锚点
+#   config: 原样传给插件 apply(ctx, config)，缺省值由 schemastery schema 兜底
+#
+# 关掉某个能力不用改代码，在 profile 里覆盖这一行的 config 即可。
+
+- insert:
+    - id: dsh-pss
+      name: dsh-pss
+      config:
+        # Dashboard 端口；被占用时自动往后顺延 10 个
+        port: 8964
+        # 跟随插件启动可视化脑图
+        autoStart: true
+        # 启动时灌一份演示语料，第一眼就能看见图
+        seedDemo: true
+        # 定长状态的维度，必须与 Python 侧一致才有意义
+        dim: 32
+        # 每次检索回填几条知识片段
+        topK: 3
+        # 意图后端：local 直接可用；lora 需要 python_backend 在跑
+        intentBackend: local
+        intentBackendUrl: http://127.0.0.1:8077

@@ -1,0 +1,8 @@
+# 真正训练 LoRA 才需要这一份（会拉 torch，几百 MB 起）
+-r requirements.txt
+torch>=2.1
+transformers>=4.38
+peft>=0.10
+datasets>=2.18
+accelerate>=0.28
+safetensors>=0.4
