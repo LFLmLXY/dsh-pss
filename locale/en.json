@@ -1,0 +1,4 @@
+{
+  "title": "PSS Memory Brain",
+  "description": "Parameterized session state memory: LoRA carries what a session cares about, with a live star-map probe and an offline trainer."
+}

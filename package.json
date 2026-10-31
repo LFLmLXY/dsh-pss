@@ -14,7 +14,8 @@
       "types": "./dist/PSSManager.d.ts",
       "default": "./dist/PSSManager.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
   },
   "files": [
     "dist",
@@ -22,7 +23,9 @@
     "knowledge",
     "python_backend",
     "cordis.patch.yml",
-    "README.md"
+    "README.md",
+    "icon.svg",
+    "locale/*.json"
   ],
   "keywords": [
     "deepseek-harness",
@@ -71,6 +74,14 @@
   "dsh": {
     "bundle": {
       "patch": "cordis.patch.yml"
+    },
+    "engines": {
+      "dsh": ">=0.2.0-rc.1"
     }
+  },
+  "icon": "./icon.svg",
+  "meta": {
+    "title": "PSS 记忆脑图",
+    "description": "参数化会话状态记忆：用 LoRA 承载会话意图，带实时星图探针与离线训练后端。"
   }
 }

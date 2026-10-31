@@ -13,6 +13,8 @@
  * @module dsh-pss
  */
 
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import z from '@deepseek-ai/schemastery';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import type { Context } from '@deepseek-ai/cordis';
@@ -26,6 +28,18 @@ export const name = 'dsh-pss';
 
 /** 依赖的服务：只依赖工具注册表，其余全部可选。 */
 export const inject = ['tools'];
+
+/**
+ * 包内自带的语料目录。
+ *
+ * 装到 profile 之后，包目录就是 profile 的 `node_modules/dsh-pss`，
+ * 所以「自带的 knowledge/」必须相对模块自身解析，而不是相对 cwd。
+ * 解析不到（例如被 tsx 直接从 src/ 跑）就退回内置种子语料。
+ */
+function packageKnowledgeDir(): string | undefined {
+  const dir = fileURLToPath(new URL('../knowledge', import.meta.url));
+  return existsSync(dir) ? dir : undefined;
+}
 
 /** 插件配置。 */
 export interface Config {
@@ -172,7 +186,7 @@ export function apply(ctx: Context, config: Config): void {
     dim: config.dim,
     topK: config.topK,
     maxNodes: config.maxNodes,
-    knowledgeDir: config.knowledgeDir || undefined,
+    knowledgeDir: config.knowledgeDir || packageKnowledgeDir(),
     trainerUrl: config.trainerUrl || undefined,
     baseModel: config.baseModel,
     intentBackend,

@@ -963,7 +963,7 @@
     const viewH = Math.max(280, vh - MARGIN.top - MARGIN.bottom);
     const box = cy.elements().boundingBox({});
     if (!box.w || !box.h) return;
-    const scale = Math.max(0.35, Math.min(1.45, Math.min(viewW / box.w, viewH / box.h) * 0.94));
+    const scale = Math.max(0.35, Math.min(2.1, Math.min(viewW / box.w, viewH / box.h) * 0.94));
     const panX = MARGIN.left + viewW / 2 - (box.x1 + box.w / 2) * scale;
     const panY = MARGIN.top + viewH / 2 - (box.y1 + box.h / 2) * scale;
     const duration = animate === false ? 0 : 520;
